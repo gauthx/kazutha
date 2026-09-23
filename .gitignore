@@ -1,0 +1,29 @@
+# Node.js / TypeScript
+node_modules/
+dist/
+build/
+*.log
+.env
+.env.*
+!.env.example
+
+# Vite
+frontend/.vite/
+
+# NestJS
+backend/dist/
+
+# Test coverage
+coverage/
+
+# OS
+.DS_Store
+Thumbs.db
+*.tmp
+*.swp
+
+# IDE
+.vscode/
+.idea/
+
+# Speckit generated (keep specs committed)

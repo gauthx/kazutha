@@ -1,0 +1,10 @@
+schema_version: "1.0"
+
+hooks:
+  after_implement:
+    - extension: "commit-msg-generator"
+      command: "commit-msg-generator"
+      description: "Generate a commit message from the git diff and commit all implemented changes"
+      prompt: "The implementation is complete. Run the commit-msg-generator skill to analyse the git diff, generate a professional commit message, present it for confirmation, and commit."
+      optional: false
+      enabled: true
