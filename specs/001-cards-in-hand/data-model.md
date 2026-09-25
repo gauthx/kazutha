@@ -59,7 +59,7 @@ The container for a single game session. Transitions through lobby → in-progre
 
 | Field | Type | Description |
 |---|---|---|
-| `roomCode` | `string` | 6-character unique identifier. Alphabet: `23456789ABCDEFGHJKLMNPQRSTUVWXYZ`. |
+| `roomCode` | `string` | 4-digit numeric identifier (starts at 1000 and increments). |
 | `status` | `GameStatus` | Current lifecycle phase of the room. |
 | `players` | `Map<playerId, Player>` | All players in the room, keyed by stable `playerId`. |
 | `hostPlayerId` | `string` | The `playerId` of the room creator. Transferred if host disconnects. |

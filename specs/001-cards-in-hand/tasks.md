@@ -31,7 +31,7 @@
 
 **Checkpoint**: Both `npm run start:dev` (backend) and `npm run dev` (frontend) start without errors. Frontend loads a blank page at `localhost:5173`. Backend logs "Application is running on port 3001".
 
-- [ ] T013-C Commit Phase 1 — stage all changes with `git add -A` and run the commit-msg-generator skill to generate and apply a commit message
+- [X] T013-C Commit Phase 1 — stage all changes with `git add -A` and run the commit-msg-generator skill to generate and apply a commit message
 
 ---
 
@@ -39,18 +39,18 @@
 
 **Purpose**: Core game infrastructure that every user story depends on. Must be complete before any story work begins.
 
-- [ ] T013 Create `backend/src/utils/room-code.ts` — implement `generateRoomCode()` using `crypto.randomInt` and alphabet `23456789ABCDEFGHJKLMNPQRSTUVWXYZ` (6 chars); implement `generateUniqueRoomCode(isInUse, maxAttempts)` with collision-check retry loop
-- [ ] T014 Create `backend/src/game/deck.service.ts` as `@Injectable()` — implement `createDeck(): Card[]` (4 suits × 13 ranks, 52 cards), `shuffleDeck<T>(array: T[]): T[]` (Fisher-Yates Durstenfeld, bound `i + 1`), `dealCards(deck: Card[], numPlayers: number): Card[][]` (round-robin `i % numPlayers`)
-- [ ] T015 Create `backend/src/game/game-store.service.ts` as `@Injectable()` with `Map<string, GameRoom>` — implement `createRoom(roomCode)`, `getRoom(roomCode)`, `findPlayerBySocketId(socketId)`, `updateActivity(roomCode)`, `deleteRoom(roomCode)`; add TTL sweep with `setInterval` (2h TTL, 5m interval, `.unref()`); implement `onModuleDestroy` to clear interval and map; call `app.enableShutdownHooks()` in `backend/src/main.ts`
-- [ ] T016 Create `backend/src/game/game.module.ts` — declare and export `DeckService` and `GameStoreService`; import `GameModule` in `backend/src/app.module.ts`
-- [ ] T017 [P] Create `backend/src/main.ts` — bootstrap with `NestFactory.create`, listen on port 3001, call `app.enableShutdownHooks()`, `app.enableCors({ origin: 'http://localhost:5173', credentials: true })` (HTTP layer only)
-- [ ] T018 [P] Create `frontend/src/utils/cardCode.ts` — implement `toCardCode(card: Card): string` that maps `{ suit, rank }` to the library's two-character format (rank `'10'` → `'T'`, suit to lowercase initial: `SPADES → s`, etc.)
-- [ ] T019 [P] Create `frontend/src/hooks/useRoom.ts` — React hook managing `RoomSnapshot | null` state; subscribes to `room-update` and `game-started` socket events; exposes `roomSnapshot`, `isHost` (compares `playerId` from localStorage to `hostPlayerId`)
-- [ ] T020 [P] Create `frontend/src/hooks/useHand.ts` — React hook managing `Card[]` state; subscribes to `hand-dealt` and `state-sync` socket events; exposes `hand`
+- [X] T013 Create `backend/src/utils/room-code.ts` — implement `generateRoomCode()` and `generateUniqueRoomCode()` using simple 4-digit incrementing code starting from 1000
+- [X] T014 Create `backend/src/game/deck.service.ts` as `@Injectable()` — implement `createDeck(): Card[]` (4 suits × 13 ranks, 52 cards), `shuffleDeck<T>(array: T[]): T[]` (Fisher-Yates Durstenfeld, bound `i + 1`), `dealCards(deck: Card[], numPlayers: number): Card[][]` (round-robin `i % numPlayers`)
+- [X] T015 Create `backend/src/game/game-store.service.ts` as `@Injectable()` with `Map<string, GameRoom>` — implement `createRoom(roomCode)`, `getRoom(roomCode)`, `findPlayerBySocketId(socketId)`, `updateActivity(roomCode)`, `deleteRoom(roomCode)`; add TTL sweep with `setInterval` (2h TTL, 5m interval, `.unref()`); implement `onModuleDestroy` to clear interval and map; call `app.enableShutdownHooks()` in `backend/src/main.ts`
+- [X] T016 Create `backend/src/game/game.module.ts` — declare and export `DeckService` and `GameStoreService`; import `GameModule` in `backend/src/app.module.ts`
+- [X] T017 [P] Create `backend/src/main.ts` — bootstrap with `NestFactory.create`, listen on port 3001, call `app.enableShutdownHooks()`, `app.enableCors({ origin: 'http://localhost:5173', credentials: true })` (HTTP layer only)
+- [X] T018 [P] Create `frontend/src/utils/cardCode.ts` — implement `toCardCode(card: Card): string` that maps `{ suit, rank }` to the library's two-character format (rank `'10'` → `'T'`, suit to lowercase initial: `SPADES → s`, etc.)
+- [X] T019 [P] Create `frontend/src/hooks/useRoom.ts` — React hook managing `RoomSnapshot | null` state; subscribes to `room-update` and `game-started` socket events; exposes `roomSnapshot`, `isHost` (compares `playerId` from localStorage to `hostPlayerId`)
+- [X] T020 [P] Create `frontend/src/hooks/useHand.ts` — React hook managing `Card[]` state; subscribes to `hand-dealt` and `state-sync` socket events; exposes `hand`
 
 **Checkpoint**: Backend starts cleanly. `DeckService` can be instantiated and `dealCards(shuffleDeck(createDeck()), 4)` returns 4 hands of 13 non-duplicate cards. `GameStoreService` can create, retrieve, and delete a room.
 
-- [ ] T021-C Commit Phase 2 — stage all changes with `git add -A` and run the commit-msg-generator skill to generate and apply a commit message
+- [X] T021-C Commit Phase 2 — stage all changes with `git add -A` and run the commit-msg-generator skill to generate and apply a commit message
 
 ---
 
@@ -147,7 +147,7 @@
 - [ ] T047 [P] Add display name validation to `frontend/src/pages/HomePage.tsx` — client-side guard: reject empty string and strings longer than 24 characters with inline form error before emitting to server
 - [ ] T048 [P] Handle "Game already in progress" join attempt — `frontend/src/pages/HomePage.tsx` displays `GAME_IN_PROGRESS` error code as a user-friendly message "This game has already started"
 - [ ] T049 Add `backend/src/game/deck.service.spec.ts` — tests: `createDeck()` returns exactly 52 cards with no duplicates; `shuffleDeck()` returns all 52 cards (different order not guaranteed but count verified); `dealCards(deck, 4)` returns 4 hands totalling 52 non-duplicate cards; `dealCards(deck, 3)` returns hand sizes [18, 17, 17]
-- [ ] T050 Add `backend/src/utils/room-code.spec.ts` — tests: generated code is 6 chars; all chars are from the valid alphabet; `generateUniqueRoomCode` retries until a non-colliding code is found
+- [ ] T050 Add `backend/src/utils/room-code.spec.ts` — tests: generated code is 4 digits; starts at 1000 and increments; generateUniqueRoomCode checks for collision
 - [ ] T051 Add `frontend/src/utils/cardCode.spec.ts` (Vitest) — tests: `toCardCode({ suit: 'HEARTS', rank: 'A' })` returns `'Ah'`; `toCardCode({ suit: 'SPADES', rank: '10' })` returns `'Ts'`; all 52 card combinations produce a non-empty two-char string
 - [ ] T052 Run all quickstart.md validation scenarios manually — confirm Scenarios 1–6 pass; document any deviations as follow-up issues
 - [ ] T052-C Commit Phase 7 — stage all changes with `git add -A` and run the commit-msg-generator skill to generate and apply a commit message

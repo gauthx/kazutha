@@ -154,8 +154,17 @@ You **MUST** consider the user input before proceeding (if not empty).
    - **Validation checkpoints**: Verify each phase completion before proceeding
 
 7. Implementation execution rules:
+   - **Strict TDD (Test-Driven Development)**:
+     - Tests MUST be written FIRST before writing implementation code.
+     - Verify tests fail before implementing the functionality, then pass after implementation.
+     - Place tests in designated test suites (`test/` or alongside modules as `*.spec.ts`), not temporary files.
+   - **Dependency Injection (DI) for Testability**:
+     - All classes, services, and handlers MUST use Dependency Injection for dependencies to allow isolated unit testing with mocks.
+   - **No-Comments Policy**:
+     - Do NOT write comments in code (no docstrings, no JSDoc, no explanatory comments).
+     - The ONLY exception is genuinely non-obvious or counter-intuitive logic that exists for a specific, necessary reason.
+     - Code must be self-explanatory through naming and structure.
    - **Setup first**: Initialize project structure, dependencies, configuration
-   - **Tests before code**: If you need to write tests for contracts, entities, and integration scenarios
    - **Core development**: Implement models, services, CLI commands, endpoints
    - **Integration work**: Database connections, middleware, logging, external services
    - **Polish and validation**: Unit tests, performance optimization, documentation

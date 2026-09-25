@@ -121,13 +121,11 @@ interface Card { suit: Suit; rank: Rank; }
 
 ## 8. Room Code Generation
 
-**Decision**: 6-character code from the alphabet `23456789ABCDEFGHJKLMNPQRSTUVWXYZ` (32 symbols, ambiguous characters removed). Generated with `crypto.randomInt` (bias-free). Checked against active rooms; retry up to 10 times.
+**Decision**: 4-digit numeric code starting at 1000 and incrementing sequentially (wrapping to 1000 after 9999). Checked against active rooms with fallback.
 
-**Keyspace**: 32⁶ ≈ 1.07 billion — negligible collision risk at any realistic game load.
+**Rationale**: Simple, human-friendly, and minimal complexity for an in-memory game without requiring complex random generators or alphanumeric parsing.
 
-**User input normalisation**: Always `.toUpperCase().trim()` before lookup. Users frequently type lowercase.
-
-**Alternatives considered**: `nanoid` with custom alphabet — equivalent approach, adds a dependency. Hand-rolled `crypto.randomInt` loop is sufficient and has no dependencies.
+**User input normalisation**: Always `.trim()` before lookup.
 
 ---
 
@@ -144,4 +142,4 @@ interface Card { suit: Suit; rank: Rank; }
 | Dealing algorithm | Round-robin `i % numPlayers` |
 | In-memory store structure | Singleton service, `Map<roomCode, GameRoom>`, `Map<playerId, Player>` |
 | Memory leak prevention | TTL sweep + `lastActivityAt` |
-| Room code format | 6-char, `crypto.randomInt`, unambiguous alphabet |
+| Room code format | 4-digit numeric, sequential starting from 1000 |

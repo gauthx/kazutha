@@ -18,7 +18,7 @@ A player opens the game in their browser, enters a display name, and creates a n
 
 **Acceptance Scenarios**:
 
-1. **Given** the game is open in a browser, **When** a player enters their display name and clicks "Create Room", **Then** a unique 4–6 character room code is generated and displayed, and the player sees a lobby screen listing themselves as a participant.
+1. **Given** the game is open in a browser, **When** a player enters their display name and clicks "Create Room", **Then** a unique 4-digit room code (starting from 1000) is generated and displayed, and the player sees a lobby screen listing themselves as a participant.
 2. **Given** a room has been created, **When** a second player opens the game in a different browser tab, enters their name, enters the room code, and clicks "Join Room", **Then** both players see each other in the lobby.
 3. **Given** a player enters an invalid or non-existent room code, **When** they click "Join Room", **Then** an error message is displayed and they remain on the join screen.
 

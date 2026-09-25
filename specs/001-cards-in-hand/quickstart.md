@@ -43,7 +43,7 @@ Expected output: Vite dev server ready at `http://localhost:5173`
 1. Open `http://localhost:5173`
 2. Enter display name `Alice`
 3. Click **Create Room**
-4. Note the 6-character room code displayed (e.g. `X3KPQ7`)
+4. Note the 4-digit room code displayed (e.g. `1000`)
 5. Verify: lobby shows `Alice` as the only player; "Start Game" button is disabled
 
 **Browser B (Guest)**:
@@ -133,7 +133,7 @@ Open the browser console on either window and check the `hand-dealt` event paylo
 ### 5a: Invalid room code
 
 1. Open a fresh browser window
-2. Enter any display name, enter room code `ZZZZZZ`
+2. Enter any display name, enter non-existent room code `9999`
 3. Click **Join Room**
 4. Expected: error message "Room not found" displayed to the user (not a browser crash)
 
@@ -164,7 +164,7 @@ Expected: all tests pass. Key tests to exist:
 - `DeckService`: `shuffleDeck()` returns all 52 cards in a different order
 - `DeckService`: `dealCards(deck, 4)` returns 4 hands of 13 cards with no duplicates
 - `GameStoreService`: room creation, player join, player eviction after grace period
-- `RoomCodeUtil`: generated codes are 6 characters from the valid alphabet
+- `RoomCodeUtil`: generated codes are 4 digits starting at 1000 and incrementing
 
 **Frontend**:
 ```bash
