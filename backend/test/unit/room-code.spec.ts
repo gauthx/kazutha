@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { createRoomCodeGenerator } from './room-code.js';
+import { createRoomCodeGenerator } from '../../src/utils/room-code.js';
 
 describe('createRoomCodeGenerator', () => {
   it('generates sequential numbers starting from specified initial value', () => {

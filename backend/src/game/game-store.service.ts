@@ -57,6 +57,31 @@ export class GameStoreService implements OnModuleDestroy {
     return this.rooms.has(roomCode);
   }
 
+  removePlayer(roomCode: number, playerId: string): boolean {
+    const room = this.rooms.get(roomCode);
+    if (!room) {
+      return true;
+    }
+
+    room.players.delete(playerId);
+    const isRoomEmpty = room.players.size === 0;
+
+    if (isRoomEmpty) {
+      this.deleteRoom(roomCode);
+      return true;
+    }
+
+    const wasHost = room.hostPlayerId === playerId;
+    if (wasHost) {
+      const nextPlayer = room.players.values().next().value;
+      if (nextPlayer) {
+        room.hostPlayerId = nextPlayer.playerId;
+      }
+    }
+
+    return false;
+  }
+
   findPlayerBySocketId(socketId: string): { room: GameRoom; player: PlayerInternal } | undefined {
     for (const room of this.rooms.values()) {
       for (const player of room.players.values()) {

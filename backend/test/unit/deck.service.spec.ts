@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { Test, TestingModule } from '@nestjs/testing';
-import { DeckService } from './deck.service.js';
+import { DeckService } from '../../src/game/deck.service.js';
 
 describe('DeckService', () => {
   let service: DeckService;

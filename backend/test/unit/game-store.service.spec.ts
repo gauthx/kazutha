@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { Test, TestingModule } from '@nestjs/testing';
-import { GameStoreService } from './game-store.service.js';
+import { GameStoreService } from '../../src/game/game-store.service.js';
 
 describe('GameStoreService', () => {
   let service: GameStoreService;
@@ -36,6 +36,47 @@ describe('GameStoreService', () => {
     expect(service.hasRoom(1000)).toBe(true);
 
     service.deleteRoom(1000);
+    expect(service.hasRoom(1000)).toBe(false);
+  });
+
+  it('removes player and reassigns host if host left', () => {
+    const room = service.createRoom(1000, 'host-1');
+    room.players.set('host-1', {
+      playerId: 'host-1',
+      displayName: 'Alice',
+      socketId: 'sock-1',
+      hand: [],
+      isConnected: true,
+      lastSeen: Date.now(),
+    });
+    room.players.set('guest-2', {
+      playerId: 'guest-2',
+      displayName: 'Bob',
+      socketId: 'sock-2',
+      hand: [],
+      isConnected: true,
+      lastSeen: Date.now(),
+    });
+
+    const isRoomEmpty = service.removePlayer(1000, 'host-1');
+    expect(isRoomEmpty).toBe(false);
+    expect(room.players.has('host-1')).toBe(false);
+    expect(room.hostPlayerId).toBe('guest-2');
+  });
+
+  it('deletes room when last player is removed', () => {
+    const room = service.createRoom(1000, 'host-1');
+    room.players.set('host-1', {
+      playerId: 'host-1',
+      displayName: 'Alice',
+      socketId: 'sock-1',
+      hand: [],
+      isConnected: true,
+      lastSeen: Date.now(),
+    });
+
+    const isRoomEmpty = service.removePlayer(1000, 'host-1');
+    expect(isRoomEmpty).toBe(true);
     expect(service.hasRoom(1000)).toBe(false);
   });
 
