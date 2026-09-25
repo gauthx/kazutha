@@ -1,23 +1,18 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { Test, TestingModule } from '@nestjs/testing';
 import { GameGateway } from '../../src/game/game.gateway.js';
-import { GameStoreService } from '../../src/game/game-store.service.js';
-import { DeckService } from '../../src/game/deck.service.js';
+import { GameService, GameError } from '../../src/game/game.service.js';
 
 describe('GameGateway', () => {
   let gateway: GameGateway;
-  let mockStore: {
+  let mockGameService: {
     createRoom: ReturnType<typeof vi.fn>;
-    getRoom: ReturnType<typeof vi.fn>;
-    hasRoom: ReturnType<typeof vi.fn>;
+    joinRoom: ReturnType<typeof vi.fn>;
+    reconnectPlayer: ReturnType<typeof vi.fn>;
+    disconnectPlayer: ReturnType<typeof vi.fn>;
     removePlayer: ReturnType<typeof vi.fn>;
-    findPlayerBySocketId: ReturnType<typeof vi.fn>;
-    toRoomSnapshot: ReturnType<typeof vi.fn>;
-  };
-  let mockDeckService: {
-    createDeck: ReturnType<typeof vi.fn>;
-    shuffleDeck: ReturnType<typeof vi.fn>;
-    dealCards: ReturnType<typeof vi.fn>;
+    startGame: ReturnType<typeof vi.fn>;
+    getRoomSnapshot: ReturnType<typeof vi.fn>;
   };
   let mockServer: any;
   let mockSocket: any;
@@ -31,33 +26,27 @@ describe('GameGateway', () => {
 
     mockSocket = {
       id: 'socket-1',
-      data: {},
+      data: { playerId: 'player-1' },
       handshake: { auth: {} },
       emit: vi.fn(),
       join: vi.fn(),
       leave: vi.fn(),
     };
 
-    mockStore = {
+    mockGameService = {
       createRoom: vi.fn(),
-      getRoom: vi.fn(),
-      hasRoom: vi.fn(),
+      joinRoom: vi.fn(),
+      reconnectPlayer: vi.fn(),
+      disconnectPlayer: vi.fn(),
       removePlayer: vi.fn(),
-      findPlayerBySocketId: vi.fn(),
-      toRoomSnapshot: vi.fn(),
-    };
-
-    mockDeckService = {
-      createDeck: vi.fn(),
-      shuffleDeck: vi.fn(),
-      dealCards: vi.fn(),
+      startGame: vi.fn(),
+      getRoomSnapshot: vi.fn(),
     };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         GameGateway,
-        { provide: GameStoreService, useValue: mockStore },
-        { provide: DeckService, useValue: mockDeckService },
+        { provide: GameService, useValue: mockGameService },
       ],
     }).compile();
 
@@ -65,122 +54,149 @@ describe('GameGateway', () => {
     gateway.server = mockServer;
   });
 
-  it('rejects create-room if display name is invalid', () => {
-    gateway.handleCreateRoom(mockSocket, { displayName: '' });
-    expect(mockSocket.emit).toHaveBeenCalledWith('error', {
-      code: 'INVALID_DISPLAY_NAME',
-      message: 'Display name must be between 1 and 24 characters',
-    });
-
-    gateway.handleCreateRoom(mockSocket, { displayName: 'a'.repeat(25) });
-    expect(mockSocket.emit).toHaveBeenCalledWith('error', {
-      code: 'INVALID_DISPLAY_NAME',
-      message: 'Display name must be between 1 and 24 characters',
-    });
-  });
-
-  it('creates room, delegates to store, and broadcasts room-update', () => {
-    const mockRoom = {
-      roomCode: 1000,
-      status: 'WAITING',
-      players: new Map(),
-      hostPlayerId: 'host-1',
-    };
-    mockStore.createRoom.mockReturnValue(mockRoom);
-    mockStore.getRoom.mockReturnValue(mockRoom);
-    mockStore.toRoomSnapshot.mockReturnValue({
-      roomCode: 1000,
-      status: 'WAITING',
-      hostPlayerId: 'host-1',
-      players: [{ playerId: 'host-1', displayName: 'Alice', cardCount: 0, isConnected: true }],
-    });
-
-    gateway.handleCreateRoom(mockSocket, { displayName: 'Alice' });
-
-    expect(mockStore.createRoom).toHaveBeenCalledWith(expect.any(Number), expect.any(String));
-    expect(mockSocket.join).toHaveBeenCalledWith(expect.any(String));
-    expect(mockSocket.emit).toHaveBeenCalledWith(
-      'join-ack',
-      expect.objectContaining({
-        roomCode: expect.any(Number),
-        playerId: expect.any(String),
-      }),
-    );
-    expect(mockServer.to).toHaveBeenCalled();
-    expect(mockServer.emit).toHaveBeenCalledWith('room-update', expect.objectContaining({ roomCode: 1000 }));
-  });
-
-  it('rejects join-room if room does not exist', () => {
-    mockStore.getRoom.mockReturnValue(undefined);
-
-    gateway.handleJoinRoom(mockSocket, { displayName: 'Bob', roomCode: 9999 });
-
-    expect(mockSocket.emit).toHaveBeenCalledWith('error', {
-      code: 'ROOM_NOT_FOUND',
-      message: 'Room not found',
-    });
-  });
-
-  it('rejects join-room if room is full', () => {
-    const mockRoom = {
-      roomCode: 1000,
-      status: 'WAITING',
-      players: { size: 6, set: vi.fn() },
-    };
-    mockStore.getRoom.mockReturnValue(mockRoom);
-
-    gateway.handleJoinRoom(mockSocket, { displayName: 'Bob', roomCode: 1000 });
-
-    expect(mockSocket.emit).toHaveBeenCalledWith('error', {
-      code: 'ROOM_FULL',
-      message: 'Room is full (max 6 players)',
-    });
-  });
-
-  it('rejects join-room if game has already started', () => {
-    const mockRoom = {
-      roomCode: 1000,
-      status: 'IN_PROGRESS',
-      players: { size: 2, set: vi.fn() },
-    };
-    mockStore.getRoom.mockReturnValue(mockRoom);
-
-    gateway.handleJoinRoom(mockSocket, { displayName: 'Bob', roomCode: 1000 });
-
-    expect(mockSocket.emit).toHaveBeenCalledWith('error', {
-      code: 'GAME_IN_PROGRESS',
-      message: 'Game is already in progress',
-    });
-  });
-
-  it('joins room and emits join-ack and room-update', () => {
-    const mockRoom = {
-      roomCode: 1000,
-      status: 'WAITING',
-      players: new Map(),
-    };
-    mockStore.getRoom.mockReturnValue(mockRoom);
-    mockStore.toRoomSnapshot.mockReturnValue({
-      roomCode: 1000,
-      status: 'WAITING',
-      hostPlayerId: 'host-1',
-      players: [{ playerId: 'p-2', displayName: 'Bob', cardCount: 0, isConnected: true }],
-    });
-
-    gateway.handleJoinRoom(mockSocket, { displayName: 'Bob', roomCode: 1000 });
-
-    expect(mockSocket.join).toHaveBeenCalledWith('1000');
-    expect(mockSocket.emit).toHaveBeenCalledWith(
-      'join-ack',
-      expect.objectContaining({
+  describe('create-room', () => {
+    it('creates room, joins socket, emits join-ack and broadcasts room-update', () => {
+      const mockSnapshot = {
         roomCode: 1000,
-        playerId: expect.any(String),
-      }),
-    );
-    expect(mockServer.to).toHaveBeenCalledWith('1000');
-    expect(mockServer.emit).toHaveBeenCalledWith(
-      'room-update',
-      expect.objectContaining({ roomCode: 1000 }),
-    );
+        status: 'WAITING' as const,
+        hostPlayerId: 'player-1',
+        players: [],
+      };
+      mockGameService.createRoom.mockReturnValue({
+        roomCode: 1000,
+        playerId: 'player-1',
+        snapshot: mockSnapshot,
+      });
+
+      gateway.handleCreateRoom(mockSocket, { displayName: 'Alice' });
+
+      expect(mockGameService.createRoom).toHaveBeenCalledWith(
+        'Alice',
+        'socket-1',
+        'player-1',
+      );
+      expect(mockSocket.join).toHaveBeenCalledWith('1000');
+      expect(mockSocket.emit).toHaveBeenCalledWith('join-ack', {
+        playerId: 'player-1',
+        roomCode: 1000,
+      });
+      expect(mockServer.to).toHaveBeenCalledWith('1000');
+      expect(mockServer.emit).toHaveBeenCalledWith('room-update', mockSnapshot);
+    });
+
+    it('catches GameError and emits error event', () => {
+      mockGameService.createRoom.mockImplementation(() => {
+        throw new GameError('INVALID_DISPLAY_NAME', 'Invalid display name');
+      });
+
+      gateway.handleCreateRoom(mockSocket, { displayName: '' });
+
+      expect(mockSocket.emit).toHaveBeenCalledWith('error', {
+        code: 'INVALID_DISPLAY_NAME',
+        message: 'Invalid display name',
+      });
+    });
+  });
+
+  describe('join-room', () => {
+    it('joins room, joins socket, emits join-ack and broadcasts room-update', () => {
+      const mockSnapshot = {
+        roomCode: 1000,
+        status: 'WAITING' as const,
+        hostPlayerId: 'host-1',
+        players: [],
+      };
+      mockGameService.joinRoom.mockReturnValue({
+        roomCode: 1000,
+        playerId: 'player-1',
+        snapshot: mockSnapshot,
+      });
+
+      gateway.handleJoinRoom(mockSocket, { displayName: 'Bob', roomCode: 1000 });
+
+      expect(mockGameService.joinRoom).toHaveBeenCalledWith(
+        1000,
+        'Bob',
+        'socket-1',
+        'player-1',
+      );
+      expect(mockSocket.join).toHaveBeenCalledWith('1000');
+      expect(mockSocket.emit).toHaveBeenCalledWith('join-ack', {
+        playerId: 'player-1',
+        roomCode: 1000,
+      });
+      expect(mockServer.to).toHaveBeenCalledWith('1000');
+      expect(mockServer.emit).toHaveBeenCalledWith('room-update', mockSnapshot);
+    });
+
+    it('catches GameError and emits error event', () => {
+      mockGameService.joinRoom.mockImplementation(() => {
+        throw new GameError('ROOM_NOT_FOUND', 'Room not found');
+      });
+
+      gateway.handleJoinRoom(mockSocket, { displayName: 'Bob', roomCode: 9999 });
+
+      expect(mockSocket.emit).toHaveBeenCalledWith('error', {
+        code: 'ROOM_NOT_FOUND',
+        message: 'Room not found',
+      });
+    });
+  });
+
+  describe('start-game', () => {
+    it('starts game, broadcasts game-started, and emits hand-dealt privately to each player', () => {
+      const mockSnapshot = {
+        roomCode: 1000,
+        status: 'IN_PROGRESS' as const,
+        hostPlayerId: 'player-1',
+        players: [],
+      };
+      const playerAssignments = [
+        {
+          playerId: 'player-1',
+          socketId: 'sock-1',
+          hand: [{ suit: 'SPADES' as const, rank: 'A' as const }],
+        },
+        {
+          playerId: 'player-2',
+          socketId: 'sock-2',
+          hand: [{ suit: 'HEARTS' as const, rank: 'K' as const }],
+        },
+      ];
+
+      mockGameService.startGame.mockReturnValue({
+        snapshot: mockSnapshot,
+        playerAssignments,
+      });
+
+      gateway.handleStartGame(mockSocket, { roomCode: 1000 });
+
+      expect(mockGameService.startGame).toHaveBeenCalledWith(1000, 'player-1');
+      expect(mockServer.to).toHaveBeenCalledWith('1000');
+      expect(mockServer.emit).toHaveBeenCalledWith('game-started', mockSnapshot);
+
+      expect(mockServer.to).toHaveBeenCalledWith('sock-1');
+      expect(mockServer.emit).toHaveBeenCalledWith('hand-dealt', {
+        hand: playerAssignments[0].hand,
+      });
+
+      expect(mockServer.to).toHaveBeenCalledWith('sock-2');
+      expect(mockServer.emit).toHaveBeenCalledWith('hand-dealt', {
+        hand: playerAssignments[1].hand,
+      });
+    });
+
+    it('catches GameError on start-game and emits error event', () => {
+      mockGameService.startGame.mockImplementation(() => {
+        throw new GameError('NOT_HOST', 'Only the host can start the game');
+      });
+
+      gateway.handleStartGame(mockSocket, { roomCode: 1000 });
+
+      expect(mockSocket.emit).toHaveBeenCalledWith('error', {
+        code: 'NOT_HOST',
+        message: 'Only the host can start the game',
+      });
+    });
   });
 });

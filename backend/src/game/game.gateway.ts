@@ -10,9 +10,7 @@ import {
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
 import { randomUUID } from 'crypto';
-import { GameStoreService } from './game-store.service.js';
-import { DeckService } from './deck.service.js';
-import { generateRoomCode } from '../utils/room-code.js';
+import { GameService, GameError } from './game.service.js';
 import type { JoinRoomPayload } from '@shared/types';
 
 const DISCONNECT_GRACE_MS = 30000;
@@ -31,10 +29,7 @@ export class GameGateway
 
   private readonly disconnectTimers = new Map<string, NodeJS.Timeout>();
 
-  constructor(
-    private readonly store: GameStoreService,
-    private readonly deckService: DeckService,
-  ) {}
+  constructor(private readonly gameService: GameService) {}
 
   afterInit(server: Server) {
     server.use((socket, next) => {
@@ -55,48 +50,46 @@ export class GameGateway
     }
 
     const roomCode = Number(auth.roomCode);
-    const room = this.store.getRoom(roomCode);
-    const player = room?.players.get(auth.playerId);
+    const result = this.gameService.reconnectPlayer(
+      roomCode,
+      auth.playerId,
+      socket.id,
+    );
 
-    if (room && player) {
-      const timer = this.disconnectTimers.get(player.playerId);
+    if (result) {
+      const timer = this.disconnectTimers.get(auth.playerId);
       if (timer) {
         clearTimeout(timer);
-        this.disconnectTimers.delete(player.playerId);
+        this.disconnectTimers.delete(auth.playerId);
       }
-
-      player.socketId = socket.id;
-      player.isConnected = true;
-      player.lastSeen = Date.now();
 
       socket.join(roomCode.toString());
       socket.emit('state-sync', {
-        hand: player.hand,
-        roomSnapshot: this.store.toRoomSnapshot(room),
+        hand: result.player.hand,
+        roomSnapshot: result.snapshot,
       });
 
-      this.broadcastRoomUpdate(roomCode);
+      this.server
+        .to(roomCode.toString())
+        .emit('room-update', result.snapshot);
     }
   }
 
   handleDisconnect(socket: Socket) {
-    const found = this.store.findPlayerBySocketId(socket.id);
-    if (!found) {
+    const result = this.gameService.disconnectPlayer(socket.id);
+    if (!result) {
       return;
     }
 
-    const { room, player } = found;
-    player.isConnected = false;
-    player.lastSeen = Date.now();
-
-    this.broadcastRoomUpdate(room.roomCode);
+    const { roomCode, player, snapshot } = result;
+    this.server.to(roomCode.toString()).emit('room-update', snapshot);
 
     const timer = setTimeout(() => {
       this.disconnectTimers.delete(player.playerId);
-      const isRoomEmpty = this.store.removePlayer(room.roomCode, player.playerId);
+      const removal = this.gameService.removePlayer(roomCode, player.playerId);
 
-      if (!isRoomEmpty) {
-        this.broadcastRoomUpdate(room.roomCode);
+      if (!removal.isRoomEmpty && removal.snapshot) {
+        this.server.to(roomCode.toString()).emit('room-update', removal.snapshot);
       }
     }, DISCONNECT_GRACE_MS);
 
@@ -108,31 +101,19 @@ export class GameGateway
     @ConnectedSocket() socket: Socket,
     @MessageBody() payload: { displayName: string },
   ) {
-    const displayName = payload?.displayName?.trim();
-    if (!displayName || displayName.length > 24) {
-      socket.emit('error', {
-        code: 'INVALID_DISPLAY_NAME',
-        message: 'Display name must be between 1 and 24 characters',
-      });
-      return;
+    try {
+      const { roomCode, playerId, snapshot } = this.gameService.createRoom(
+        payload?.displayName,
+        socket.id,
+        socket.data.playerId,
+      );
+
+      socket.join(roomCode.toString());
+      socket.emit('join-ack', { playerId, roomCode });
+      this.server.to(roomCode.toString()).emit('room-update', snapshot);
+    } catch (err) {
+      this.handleError(socket, err);
     }
-
-    const roomCode = generateRoomCode();
-    const playerId = socket.data.playerId || randomUUID();
-    const room = this.store.createRoom(roomCode, playerId);
-
-    room.players.set(playerId, {
-      playerId,
-      displayName,
-      socketId: socket.id,
-      hand: [],
-      isConnected: true,
-      lastSeen: Date.now(),
-    });
-
-    socket.join(roomCode.toString());
-    socket.emit('join-ack', { playerId, roomCode });
-    this.broadcastRoomUpdate(roomCode);
   }
 
   @SubscribeMessage('join-room')
@@ -140,63 +121,54 @@ export class GameGateway
     @ConnectedSocket() socket: Socket,
     @MessageBody() payload: JoinRoomPayload,
   ) {
-    const displayName = payload?.displayName?.trim();
-    if (!displayName || displayName.length > 24) {
-      socket.emit('error', {
-        code: 'INVALID_DISPLAY_NAME',
-        message: 'Display name must be between 1 and 24 characters',
-      });
-      return;
+    try {
+      const { roomCode, playerId, snapshot } = this.gameService.joinRoom(
+        Number(payload?.roomCode),
+        payload?.displayName,
+        socket.id,
+        socket.data.playerId,
+      );
+
+      socket.join(roomCode.toString());
+      socket.emit('join-ack', { playerId, roomCode });
+      this.server.to(roomCode.toString()).emit('room-update', snapshot);
+    } catch (err) {
+      this.handleError(socket, err);
     }
-
-    const roomCode = Number(payload.roomCode);
-    const room = this.store.getRoom(roomCode);
-
-    if (!room) {
-      socket.emit('error', {
-        code: 'ROOM_NOT_FOUND',
-        message: 'Room not found',
-      });
-      return;
-    }
-
-    if (room.status !== 'WAITING') {
-      socket.emit('error', {
-        code: 'GAME_IN_PROGRESS',
-        message: 'Game is already in progress',
-      });
-      return;
-    }
-
-    if (room.players.size >= 6) {
-      socket.emit('error', {
-        code: 'ROOM_FULL',
-        message: 'Room is full (max 6 players)',
-      });
-      return;
-    }
-
-    const playerId = socket.data.playerId || randomUUID();
-    room.players.set(playerId, {
-      playerId,
-      displayName,
-      socketId: socket.id,
-      hand: [],
-      isConnected: true,
-      lastSeen: Date.now(),
-    });
-
-    socket.join(roomCode.toString());
-    socket.emit('join-ack', { playerId, roomCode });
-    this.broadcastRoomUpdate(roomCode);
   }
 
-  private broadcastRoomUpdate(roomCode: number) {
-    const room = this.store.getRoom(roomCode);
-    if (room) {
-      this.server
-        .to(roomCode.toString())
-        .emit('room-update', this.store.toRoomSnapshot(room));
+  @SubscribeMessage('start-game')
+  handleStartGame(
+    @ConnectedSocket() socket: Socket,
+    @MessageBody() payload: { roomCode: number | string },
+  ) {
+    try {
+      const roomCode = Number(payload?.roomCode);
+      const { snapshot, playerAssignments } = this.gameService.startGame(
+        roomCode,
+        socket.data.playerId,
+      );
+
+      this.server.to(roomCode.toString()).emit('game-started', snapshot);
+
+      for (const assignment of playerAssignments) {
+        this.server
+          .to(assignment.socketId)
+          .emit('hand-dealt', { hand: assignment.hand });
+      }
+    } catch (err) {
+      this.handleError(socket, err);
     }
+  }
+
+  private handleError(socket: Socket, err: unknown) {
+    if (err instanceof GameError) {
+      socket.emit('error', { code: err.code, message: err.message });
+      return;
+    }
+    socket.emit('error', {
+      code: 'INTERNAL_ERROR',
+      message: 'An unexpected error occurred',
+    });
   }
 }
