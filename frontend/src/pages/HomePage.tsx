@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { socket } from '../socket';
+import { ErrorBanner } from '../components/ErrorBanner';
 import type { JoinAckPayload, ErrorPayload } from '@shared/types';
 
 export function HomePage() {
@@ -69,8 +70,8 @@ export function HomePage() {
         </p>
 
         {error && (
-          <div className="mb-6 rounded-lg bg-rose-500/20 border border-rose-500/50 p-3 text-sm text-rose-200">
-            {error}
+          <div className="mb-6">
+            <ErrorBanner message={error} onDismiss={() => setError(null)} />
           </div>
         )}
 

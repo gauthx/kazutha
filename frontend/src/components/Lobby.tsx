@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import type { RoomSnapshot } from '@shared/types';
 import { socket } from '../socket';
 
@@ -9,6 +9,18 @@ interface LobbyProps {
 
 export function Lobby({ roomSnapshot, isHost }: LobbyProps) {
   const [copied, setCopied] = useState(false);
+  const [hostNotification, setHostNotification] = useState<string | null>(null);
+  const prevHostRef = useRef(roomSnapshot.hostPlayerId);
+
+  useEffect(() => {
+    if (prevHostRef.current && prevHostRef.current !== roomSnapshot.hostPlayerId) {
+      setHostNotification('Host has changed');
+      const timer = setTimeout(() => setHostNotification(null), 3000);
+      prevHostRef.current = roomSnapshot.hostPlayerId;
+      return () => clearTimeout(timer);
+    }
+    prevHostRef.current = roomSnapshot.hostPlayerId;
+  }, [roomSnapshot.hostPlayerId]);
 
   const handleCopyCode = async () => {
     try {
@@ -28,6 +40,12 @@ export function Lobby({ roomSnapshot, isHost }: LobbyProps) {
   return (
     <div className="flex min-h-screen items-center justify-center p-4">
       <div className="w-full max-w-lg rounded-xl bg-slate-800 p-8 shadow-2xl border border-slate-700">
+        {hostNotification && (
+          <div className="mb-4 rounded bg-indigo-500/20 border border-indigo-500/50 py-1.5 px-3 text-center text-xs font-semibold text-indigo-200">
+            {hostNotification}
+          </div>
+        )}
+
         <div className="text-center mb-8">
           <p className="text-xs uppercase tracking-wider text-slate-400 mb-1">
             Room Code

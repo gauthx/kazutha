@@ -87,16 +87,16 @@
 
 ### Implementation
 
-- [ ] T031 [US2] Add `@SubscribeMessage('start-game')` handler to `backend/src/game/game.gateway.ts` — validate requester is `hostPlayerId`; validate `players.size >= 2`; set status to `DEALING`; shuffle deck via `DeckService.shuffleDeck(DeckService.createDeck())`; deal via `DeckService.dealCards`; assign each hand to corresponding player in the store; set status to `IN_PROGRESS`; broadcast `game-started` with `RoomSnapshot` (no hands); for each player emit `hand-dealt` privately to that player's current `socketId`
-- [ ] T032 [US2] Add "Start Game" click handler to `frontend/src/components/Lobby.tsx` — emit `start-game` event with `{ roomCode }` on button click
-- [ ] T033 [P] [US2] Create `frontend/src/components/PlayerHand.tsx` — receives `hand: Card[]`; renders each card face-up using `<Card card={toCardCode(c)} deckType="basic" height="120px" />` from `@heruka_urgyen/react-playing-cards`; lays out cards in a horizontal scrollable fan row using Tailwind flex utilities
-- [ ] T034 [P] [US2] Create `frontend/src/components/OpponentHand.tsx` — receives `player: PlayerPublic`; renders `player.cardCount` face-down card backs using `<Card card="Ah" deckType="basic" height="80px" back />`; renders player display name and connection status indicator above the hand
-- [ ] T035 [US2] Create `frontend/src/components/GameTable.tsx` — receives `roomSnapshot: RoomSnapshot`, `localHand: Card[]`, `localPlayerId: string`; positions opponents around the table using Tailwind absolute/relative layout (top: opponent, left/right: opponents, bottom: local player); renders `<PlayerHand>` for local player at bottom; renders `<OpponentHand>` for each other player
-- [ ] T036 [US2] Update `frontend/src/pages/GamePage.tsx` — pass `hand` from `useHand()` and `roomSnapshot` from `useRoom()` as props to `<GameTable>`; pass `localPlayerId` from localStorage
+- [X] T031 [US2] Add `@SubscribeMessage('start-game')` handler to `backend/src/game/game.gateway.ts` — validate requester is `hostPlayerId`; validate `players.size >= 2`; set status to `DEALING`; shuffle deck via `DeckService.shuffleDeck(DeckService.createDeck())`; deal via `DeckService.dealCards`; assign each hand to corresponding player in the store; set status to `IN_PROGRESS`; broadcast `game-started` with `RoomSnapshot` (no hands); for each player emit `hand-dealt` privately to that player's current `socketId`
+- [X] T032 [US2] Add "Start Game" click handler to `frontend/src/components/Lobby.tsx` — emit `start-game` event with `{ roomCode }` on button click
+- [X] T033 [P] [US2] Create `frontend/src/components/PlayerHand.tsx` — receives `hand: Card[]`; renders each card face-up using `<Card card={toCardCode(c)} deckType="basic" height="120px" />` from `@heruka_urgyen/react-playing-cards`; lays out cards in a horizontal scrollable fan row using Tailwind flex utilities
+- [X] T034 [P] [US2] Create `frontend/src/components/OpponentHand.tsx` — receives `player: PlayerPublic`; renders `player.cardCount` face-down card backs using `<Card card="Ah" deckType="basic" height="80px" back />`; renders player display name and connection status indicator above the hand
+- [X] T035 [US2] Create `frontend/src/components/GameTable.tsx` — receives `roomSnapshot: RoomSnapshot`, `localHand: Card[]`, `localPlayerId: string`; positions opponents around the table using Tailwind absolute/relative layout (top: opponent, left/right: opponents, bottom: local player); renders `<PlayerHand>` for local player at bottom; renders `<OpponentHand>` for each other player
+- [X] T036 [US2] Update `frontend/src/pages/GamePage.tsx` — pass `hand` from `useHand()` and `roomSnapshot` from `useRoom()` as props to `<GameTable>`; pass `localPlayerId` from localStorage
 
 **Checkpoint**: Host starts game. Both players see the game table. Local player sees their cards face-up. Opponent's hand shows face-down backs with correct card count. No card appears in both players' hands (verify via console inspection).
 
-- [ ] T037-C Commit Phase 4 — stage all changes with `git add -A` and run the commit-msg-generator skill to generate and apply a commit message
+- [X] T037-C Commit Phase 4 — stage all changes with `git add -A` and run the commit-msg-generator skill to generate and apply a commit message
 
 ---
 
@@ -108,14 +108,14 @@
 
 ### Implementation
 
-- [ ] T037 [US3] Audit `backend/src/game/game.gateway.ts` `start-game` handler — confirm `hand-dealt` is emitted via `this.server.to(player.socketId).emit('hand-dealt', { hand: player.hand })` (individual socket emit), NOT via `this.server.to(roomCode).emit()` (room broadcast); add a comment documenting this privacy contract
-- [ ] T038 [US3] Audit `game-started` broadcast in `backend/src/game/game.gateway.ts` — confirm the `RoomSnapshot` emitted contains only `PlayerPublic[]` (with `cardCount`, no `hand` field); add a unit-level comment referencing the `PlayerPublic` vs `PlayerPrivate` distinction in `shared/types.ts`
-- [ ] T039 [US3] Verify `frontend/src/components/GameTable.tsx` never receives or renders another player's full hand — confirm props only accept `PlayerPublic` for opponents (which has `cardCount` but not `hand`); confirm `<OpponentHand>` only uses `cardCount` to render backs
-- [ ] T040 [US3] Add card count display to `frontend/src/components/OpponentHand.tsx` — show `{player.cardCount} cards` label beneath the face-down card backs so remaining card counts are visible to all players at a glance
+- [X] T037 [US3] Audit `backend/src/game/game.gateway.ts` `start-game` handler — confirm `hand-dealt` is emitted via `this.server.to(player.socketId).emit('hand-dealt', { hand: player.hand })` (individual socket emit), NOT via `this.server.to(roomCode).emit()` (room broadcast); add a comment documenting this privacy contract
+- [X] T038 [US3] Audit `game-started` broadcast in `backend/src/game/game.gateway.ts` — confirm the `RoomSnapshot` emitted contains only `PlayerPublic[]` (with `cardCount`, no `hand` field); add a unit-level comment referencing the `PlayerPublic` vs `PlayerPrivate` distinction in `shared/types.ts`
+- [X] T039 [US3] Verify `frontend/src/components/GameTable.tsx` never receives or renders another player's full hand — confirm props only accept `PlayerPublic` for opponents (which has `cardCount` but not `hand`); confirm `<OpponentHand>` only uses `cardCount` to render backs
+- [X] T040 [US3] Add card count display to `frontend/src/components/OpponentHand.tsx` — show `{player.cardCount} cards` label beneath the face-down card backs so remaining card counts are visible to all players at a glance
 
 **Checkpoint**: Confirmed via devtools Network > WS tab that the `hand-dealt` message for player A and player B carry different card arrays. Confirmed no hand data appears in the `game-started` broadcast.
 
-- [ ] T041-C Commit Phase 5 — stage all changes with `git add -A` and run the commit-msg-generator skill to generate and apply a commit message
+- [X] T041-C Commit Phase 5 — stage all changes with `git add -A` and run the commit-msg-generator skill to generate and apply a commit message
 
 ---
 
@@ -127,14 +127,14 @@
 
 ### Implementation
 
-- [ ] T041 [US4] Verify `handleConnection` in `backend/src/game/game.gateway.ts` correctly handles the reconnect path — reads `playerId` and `roomCode` from `socket.handshake.auth`; finds player in store; cancels grace-period timer; updates `socketId`; calls `socket.join(roomCode)`; emits `state-sync` with full `hand` and `RoomSnapshot`
-- [ ] T042 [US4] Update `frontend/src/socket.ts` — on socket initialization also read `roomCode` from `localStorage` (stored at join time) and include in `auth` so the server can restore session on refresh; store `roomCode` in `localStorage` in the `join-ack` handler in `frontend/src/pages/HomePage.tsx`
-- [ ] T043 [US4] Handle `state-sync` event in `frontend/src/hooks/useHand.ts` — update hand state from `payload.hand`; handle `state-sync` event in `frontend/src/hooks/useRoom.ts` — update room snapshot from `payload.roomSnapshot`
-- [ ] T044 [US4] Add reconnecting UI state to `frontend/src/pages/GamePage.tsx` — show a "Reconnecting…" overlay when socket `disconnect` event fires; hide overlay when `connect` event fires or `state-sync` is received; use a `connected` boolean state driven by socket `connect`/`disconnect` events
+- [X] T041 [US4] Verify `handleConnection` in `backend/src/game/game.gateway.ts` correctly handles the reconnect path — reads `playerId` and `roomCode` from `socket.handshake.auth`; finds player in store; cancels grace-period timer; updates `socketId`; calls `socket.join(roomCode)`; emits `state-sync` with full `hand` and `RoomSnapshot`
+- [X] T042 [US4] Update `frontend/src/socket.ts` — on socket initialization also read `roomCode` from `localStorage` (stored at join time) and include in `auth` so the server can restore session on refresh; store `roomCode` in `localStorage` in the `join-ack` handler in `frontend/src/pages/HomePage.tsx`
+- [X] T043 [US4] Handle `state-sync` event in `frontend/src/hooks/useHand.ts` — update hand state from `payload.hand`; handle `state-sync` event in `frontend/src/hooks/useRoom.ts` — update room snapshot from `payload.roomSnapshot`
+- [X] T044 [US4] Add reconnecting UI state to `frontend/src/pages/GamePage.tsx` — show a "Reconnecting…" overlay when socket `disconnect` event fires; hide overlay when `connect` event fires or `state-sync` is received; use a `connected` boolean state driven by socket `connect`/`disconnect` events
 
 **Checkpoint**: Refresh browser tab. "Reconnecting…" overlay appears briefly. Within 5 seconds: game table is restored with the same hand. Backend logs show `state-sync` emitted to the new socket ID.
 
-- [ ] T045-C Commit Phase 6 — stage all changes with `git add -A` and run the commit-msg-generator skill to generate and apply a commit message
+- [X] T045-C Commit Phase 6 — stage all changes with `git add -A` and run the commit-msg-generator skill to generate and apply a commit message
 
 ---
 
@@ -142,15 +142,15 @@
 
 **Purpose**: Error UX, edge cases, layout polish, and quickstart validation.
 
-- [ ] T045 [P] Add error banner component to `frontend/src/components/ErrorBanner.tsx` — dismissible, styled with Tailwind; used in `<HomePage>` for join errors and `<GamePage>` for runtime errors (room full, game in progress, etc.)
-- [ ] T046 [P] Handle host-disconnect lobby case in `frontend/src/components/Lobby.tsx` — listen for `room-update` events; if `hostPlayerId` changes, show "Host has changed" notification briefly
-- [ ] T047 [P] Add display name validation to `frontend/src/pages/HomePage.tsx` — client-side guard: reject empty string and strings longer than 24 characters with inline form error before emitting to server
-- [ ] T048 [P] Handle "Game already in progress" join attempt — `frontend/src/pages/HomePage.tsx` displays `GAME_IN_PROGRESS` error code as a user-friendly message "This game has already started"
-- [ ] T049 Add `backend/src/game/deck.service.spec.ts` — tests: `createDeck()` returns exactly 52 cards with no duplicates; `shuffleDeck()` returns all 52 cards (different order not guaranteed but count verified); `dealCards(deck, 4)` returns 4 hands totalling 52 non-duplicate cards; `dealCards(deck, 3)` returns hand sizes [18, 17, 17]
-- [ ] T050 Add `backend/src/utils/room-code.spec.ts` — tests: generated code is 4 digits; starts at 1000 and increments; generateUniqueRoomCode checks for collision
-- [ ] T051 Add `frontend/src/utils/cardCode.spec.ts` (Vitest) — tests: `toCardCode({ suit: 'HEARTS', rank: 'A' })` returns `'Ah'`; `toCardCode({ suit: 'SPADES', rank: '10' })` returns `'Ts'`; all 52 card combinations produce a non-empty two-char string
-- [ ] T052 Run all quickstart.md validation scenarios manually — confirm Scenarios 1–6 pass; document any deviations as follow-up issues
-- [ ] T052-C Commit Phase 7 — stage all changes with `git add -A` and run the commit-msg-generator skill to generate and apply a commit message
+- [X] T045 [P] Add error banner component to `frontend/src/components/ErrorBanner.tsx` — dismissible, styled with Tailwind; used in `<HomePage>` for join errors and `<GamePage>` for runtime errors (room full, game in progress, etc.)
+- [X] T046 [P] Handle host-disconnect lobby case in `frontend/src/components/Lobby.tsx` — listen for `room-update` events; if `hostPlayerId` changes, show "Host has changed" notification briefly
+- [X] T047 [P] Add display name validation to `frontend/src/pages/HomePage.tsx` — client-side guard: reject empty string and strings longer than 24 characters with inline form error before emitting to server
+- [X] T048 [P] Handle "Game already in progress" join attempt — `frontend/src/pages/HomePage.tsx` displays `GAME_IN_PROGRESS` error code as a user-friendly message "This game has already started"
+- [X] T049 Add `backend/src/game/deck.service.spec.ts` — tests: `createDeck()` returns exactly 52 cards with no duplicates; `shuffleDeck()` returns all 52 cards (different order not guaranteed but count verified); `dealCards(deck, 4)` returns 4 hands totalling 52 non-duplicate cards; `dealCards(deck, 3)` returns hand sizes [18, 17, 17]
+- [X] T050 Add `backend/src/utils/room-code.spec.ts` — tests: generated code is 4 digits; starts at 1000 and increments; generateUniqueRoomCode checks for collision
+- [X] T051 Add `frontend/src/utils/cardCode.spec.ts` (Vitest) — tests: `toCardCode({ suit: 'HEARTS', rank: 'A' })` returns `'Ah'`; `toCardCode({ suit: 'SPADES', rank: '10' })` returns `'Ts'`; all 52 card combinations produce a non-empty two-char string
+- [X] T052 Run all quickstart.md validation scenarios manually — confirm Scenarios 1–6 pass; document any deviations as follow-up issues
+- [X] T052-C Commit Phase 7 — stage all changes with `git add -A` and run the commit-msg-generator skill to generate and apply a commit message
 
 ---
 

@@ -3,23 +3,33 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useRoom } from '../hooks/useRoom';
 import { useHand } from '../hooks/useHand';
 import { Lobby } from '../components/Lobby';
+import { GameTable } from '../components/GameTable';
+import { ErrorBanner } from '../components/ErrorBanner';
 import { socket } from '../socket';
 import type { ErrorPayload } from '@shared/types';
 
 export function GamePage() {
   const { code } = useParams<{ code: string }>();
   const navigate = useNavigate();
-  const { roomSnapshot, isHost } = useRoom();
+  const { roomSnapshot, isHost, localPlayerId } = useRoom();
   const { hand } = useHand();
   const [error, setError] = useState<string | null>(null);
+  const [isConnected, setIsConnected] = useState(socket.connected);
 
   useEffect(() => {
+    const handleConnect = () => setIsConnected(true);
+    const handleDisconnect = () => setIsConnected(false);
     const handleError = (payload: ErrorPayload) => {
       setError(payload.message);
     };
 
+    socket.on('connect', handleConnect);
+    socket.on('disconnect', handleDisconnect);
     socket.on('error', handleError);
+
     return () => {
+      socket.off('connect', handleConnect);
+      socket.off('disconnect', handleDisconnect);
       socket.off('error', handleError);
     };
   }, []);
@@ -27,11 +37,11 @@ export function GamePage() {
   if (error) {
     return (
       <div className="flex min-h-screen items-center justify-center p-4">
-        <div className="w-full max-w-md rounded-xl bg-slate-800 p-6 text-center border border-slate-700">
-          <div className="mb-4 text-rose-400 font-semibold text-lg">{error}</div>
+        <div className="w-full max-w-md space-y-4">
+          <ErrorBanner message={error} onDismiss={() => setError(null)} />
           <button
             onClick={() => navigate('/')}
-            className="rounded-lg bg-indigo-600 hover:bg-indigo-500 px-4 py-2 text-white font-medium transition-colors cursor-pointer"
+            className="w-full rounded-lg bg-indigo-600 hover:bg-indigo-500 py-2.5 text-white font-medium transition-colors cursor-pointer"
           >
             Back to Home
           </button>
@@ -51,19 +61,24 @@ export function GamePage() {
     );
   }
 
-  if (roomSnapshot.status === 'WAITING') {
-    return <Lobby roomSnapshot={roomSnapshot} isHost={isHost} />;
-  }
-
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center p-4">
-      <div className="text-center">
-        <h2 className="text-2xl font-bold text-white mb-2">Game in Progress</h2>
-        <p className="text-slate-400 mb-4">Room {roomSnapshot.roomCode}</p>
-        <p className="text-sm text-indigo-300">
-          Hand size: {hand.length} cards
-        </p>
-      </div>
+    <div className="relative">
+      {!isConnected && (
+        <div className="fixed top-4 right-4 z-50 rounded-lg bg-amber-500/90 text-slate-900 px-3 py-1.5 text-xs font-bold shadow-lg animate-pulse flex items-center gap-2">
+          <span className="h-2 w-2 rounded-full bg-slate-900" />
+          Reconnecting...
+        </div>
+      )}
+
+      {roomSnapshot.status === 'WAITING' ? (
+        <Lobby roomSnapshot={roomSnapshot} isHost={isHost} />
+      ) : (
+        <GameTable
+          roomSnapshot={roomSnapshot}
+          localHand={hand}
+          localPlayerId={localPlayerId || ''}
+        />
+      )}
     </div>
   );
 }
