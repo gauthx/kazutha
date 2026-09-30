@@ -53,20 +53,22 @@ Types shared between frontend and backend are kept in a `shared/` directory at t
 
 ---
 
-## Real-Time Communication Pattern
+## Communication Pattern
+ 
+### 1. Room Setup & Lobby (HTTP REST + Short Polling)
+- Room creation, joining, polling room state, leaving, and game start are handled via HTTP endpoints under `/api/rooms`.
+- The lobby polls `GET /api/rooms/:code` every 2 seconds to update player rosters.
+- Sockets are not connected while in the lobby.
+
+### 2. Active Gameplay (Socket.IO over WebSocket)
+- Once the room transitions to `IN_PROGRESS`, clients establish a WebSocket connection.
+- Socket handshake authenticates using `auth: { playerId, roomCode }` from `localStorage`.
+- Server responds with `state-sync` (hand + room snapshot) and registers the socket for active card play.
 
 ```
-Browser (Socket.IO client)
-        <-> WebSocket
-NestJS Gateway (Socket.IO server)
-        <->
-In-Memory Game Store (rooms, hands, round state)
+Lobby:   Browser <--- HTTP REST (Poll 2s) ---> NestJS RoomsController
+Game:    Browser <--- WebSocket (Socket.IO) -> NestJS GameGateway <-> Game Store
 ```
-
-Key Socket.IO concepts used:
-- Rooms — each game room maps to a Socket.IO room
-- Broadcasts — push game state updates to all players in a room
-- Events — typed event contracts for game actions (play-card, game-state-update, vett, round-end)
 
 ---
 

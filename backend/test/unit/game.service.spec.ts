@@ -47,82 +47,6 @@ describe('GameService', () => {
     service = module.get<GameService>(GameService);
   });
 
-  describe('createRoom', () => {
-    it('throws GameError if display name is invalid', () => {
-      expect(() => service.createRoom('', 'sock-1')).toThrow(GameError);
-      expect(() => service.createRoom('a'.repeat(25), 'sock-1')).toThrow(
-        GameError,
-      );
-    });
-
-    it('creates room and adds creator as first player', () => {
-      const mockRoom = {
-        roomCode: 1000,
-        status: 'WAITING',
-        players: new Map(),
-        hostPlayerId: 'host-id',
-      };
-      mockStore.createRoom.mockReturnValue(mockRoom);
-      mockStore.toRoomSnapshot.mockReturnValue({
-        roomCode: 1000,
-        status: 'WAITING',
-        hostPlayerId: 'host-id',
-        players: [],
-      });
-
-      const result = service.createRoom('Alice', 'sock-1', 'host-id');
-      expect(result.roomCode).toBeDefined();
-      expect(result.playerId).toBe('host-id');
-      expect(mockStore.createRoom).toHaveBeenCalled();
-      expect(mockRoom.players.has('host-id')).toBe(true);
-    });
-  });
-
-  describe('joinRoom', () => {
-    it('throws GameError when room is not found', () => {
-      mockStore.getRoom.mockReturnValue(undefined);
-      expect(() => service.joinRoom(1000, 'Bob', 'sock-2')).toThrow(GameError);
-    });
-
-    it('throws GameError when game is already in progress', () => {
-      mockStore.getRoom.mockReturnValue({
-        roomCode: 1000,
-        status: 'IN_PROGRESS',
-        players: new Map(),
-      });
-      expect(() => service.joinRoom(1000, 'Bob', 'sock-2')).toThrow(GameError);
-    });
-
-    it('throws GameError when room is full', () => {
-      mockStore.getRoom.mockReturnValue({
-        roomCode: 1000,
-        status: 'WAITING',
-        players: { size: 6, set: vi.fn() },
-      });
-      expect(() => service.joinRoom(1000, 'Bob', 'sock-2')).toThrow(GameError);
-    });
-
-    it('successfully joins a waiting room', () => {
-      const mockRoom = {
-        roomCode: 1000,
-        status: 'WAITING',
-        players: new Map(),
-      };
-      mockStore.getRoom.mockReturnValue(mockRoom);
-      mockStore.toRoomSnapshot.mockReturnValue({
-        roomCode: 1000,
-        status: 'WAITING',
-        hostPlayerId: 'host-1',
-        players: [],
-      });
-
-      const result = service.joinRoom(1000, 'Bob', 'sock-2', 'p-2');
-      expect(result.roomCode).toBe(1000);
-      expect(result.playerId).toBe('p-2');
-      expect(mockRoom.players.has('p-2')).toBe(true);
-    });
-  });
-
   describe('startGame', () => {
     it('throws GameError if room does not exist', () => {
       mockStore.getRoom.mockReturnValue(undefined);
@@ -184,6 +108,59 @@ describe('GameService', () => {
       expect(result.playerAssignments.length).toBe(2);
       expect(result.playerAssignments[0].socketId).toBe('s1');
       expect(result.playerAssignments[1].socketId).toBe('s2');
+    });
+  });
+
+  describe('connectPlayer', () => {
+    it('returns null if room or player not found', () => {
+      mockStore.getRoom.mockReturnValue(undefined);
+      expect(service.connectPlayer(1000, 'p-1', 'sock-1')).toBeNull();
+    });
+
+    it('updates player socketId and marks connected', () => {
+      const player = { playerId: 'p-1', socketId: '', isConnected: false, lastSeen: 0 };
+      const room = {
+        roomCode: 1000,
+        players: new Map([['p-1', player]]),
+      };
+      mockStore.getRoom.mockReturnValue(room);
+      mockStore.toRoomSnapshot.mockReturnValue({ roomCode: 1000, players: [] });
+
+      const result = service.connectPlayer(1000, 'p-1', 'sock-1');
+      expect(result).not.toBeNull();
+      expect(player.socketId).toBe('sock-1');
+      expect(player.isConnected).toBe(true);
+    });
+  });
+
+  describe('disconnectPlayer', () => {
+    it('returns null if socketId not found', () => {
+      mockStore.findPlayerBySocketId.mockReturnValue(undefined);
+      expect(service.disconnectPlayer('unknown-sock')).toBeNull();
+    });
+
+    it('marks player as disconnected and returns snapshot', () => {
+      const player = { playerId: 'p-1', isConnected: true, lastSeen: 0 };
+      const room = { roomCode: 1000 };
+      mockStore.findPlayerBySocketId.mockReturnValue({ room, player });
+      mockStore.toRoomSnapshot.mockReturnValue({ roomCode: 1000 });
+
+      const result = service.disconnectPlayer('sock-1');
+      expect(result).not.toBeNull();
+      expect(player.isConnected).toBe(false);
+      expect(result?.roomCode).toBe(1000);
+    });
+  });
+
+  describe('removePlayer', () => {
+    it('delegates to store.removePlayer', () => {
+      mockStore.removePlayer.mockReturnValue(false);
+      mockStore.getRoom.mockReturnValue({ roomCode: 1000 });
+      mockStore.toRoomSnapshot.mockReturnValue({ roomCode: 1000 });
+
+      const result = service.removePlayer(1000, 'p-1');
+      expect(mockStore.removePlayer).toHaveBeenCalledWith(1000, 'p-1');
+      expect(result.isRoomEmpty).toBe(false);
     });
   });
 });

@@ -118,7 +118,8 @@ If a player loses their connection (e.g. tab refresh or brief network drop), the
 - Desktop browser only — mobile layout is out of scope for this slice.
 - Players are on the same local network or have a stable internet connection; no special NAT traversal is required.
 - No persistent storage — all game state lives in server memory for the duration of the session.
+- Room setup & lobby operates over HTTP REST (`/api/rooms`) with 2-second short polling; WebSockets connect upon entering active gameplay.
 - The minimum player count to start is 2; the maximum is 6 as agreed during design.
-- Display names are not unique enforced — two players can share a name (socket ID is the true identifier).
+- Display names are not unique enforced — two players can share a name (player ID is the true identifier).
 - No chat, no game history, no statistics in this slice.
 - The `react-playing-cards` library is used as-is; no custom card artwork is required.

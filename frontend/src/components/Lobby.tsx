@@ -1,15 +1,22 @@
 import { useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import type { RoomSnapshot } from '@shared/types';
-import { socket } from '../socket';
+import { startGame, leaveRoom } from '../api';
+import { ErrorBanner } from './ErrorBanner';
 
 interface LobbyProps {
   roomSnapshot: RoomSnapshot;
   isHost: boolean;
+  onRoomUpdate?: (snapshot: RoomSnapshot) => void;
 }
 
-export function Lobby({ roomSnapshot, isHost }: LobbyProps) {
+export function Lobby({ roomSnapshot, isHost, onRoomUpdate }: LobbyProps) {
+  const navigate = useNavigate();
   const [copied, setCopied] = useState(false);
   const [hostNotification, setHostNotification] = useState<string | null>(null);
+  const [isStarting, setIsStarting] = useState(false);
+  const [isLeaving, setIsLeaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const prevHostRef = useRef(roomSnapshot.hostPlayerId);
 
   useEffect(() => {
@@ -30,16 +37,51 @@ export function Lobby({ roomSnapshot, isHost }: LobbyProps) {
     } catch {}
   };
 
-  const handleStartGame = () => {
-    socket.emit('start-game', { roomCode: roomSnapshot.roomCode });
+  const handleStartGame = async () => {
+    const localPlayerId = localStorage.getItem('playerId');
+    if (!localPlayerId) return;
+
+    try {
+      setIsStarting(true);
+      setError(null);
+      const res = await startGame(roomSnapshot.roomCode, localPlayerId);
+      if (onRoomUpdate) {
+        onRoomUpdate(res.snapshot);
+      }
+    } catch (err: any) {
+      setError(err?.message || 'Failed to start game');
+    } finally {
+      setIsStarting(false);
+    }
+  };
+
+  const handleLeaveRoom = async () => {
+    const localPlayerId = localStorage.getItem('playerId');
+    try {
+      setIsLeaving(true);
+      if (localPlayerId) {
+        await leaveRoom(roomSnapshot.roomCode, localPlayerId);
+      }
+    } catch {
+      // Continue navigating away even if leave request fails
+    } finally {
+      localStorage.removeItem('roomCode');
+      navigate('/');
+    }
   };
 
   const playerCount = roomSnapshot.players.length;
-  const canStart = isHost && playerCount >= 2;
+  const canStart = isHost && playerCount >= 2 && !isStarting;
 
   return (
     <div className="flex min-h-screen items-center justify-center p-4">
       <div className="w-full max-w-lg rounded-xl bg-slate-800 p-8 shadow-2xl border border-slate-700">
+        {error && (
+          <div className="mb-4">
+            <ErrorBanner message={error} onDismiss={() => setError(null)} />
+          </div>
+        )}
+
         {hostNotification && (
           <div className="mb-4 rounded bg-indigo-500/20 border border-indigo-500/50 py-1.5 px-3 text-center text-xs font-semibold text-indigo-200">
             {hostNotification}
@@ -121,7 +163,9 @@ export function Lobby({ roomSnapshot, isHost }: LobbyProps) {
                   : 'bg-slate-700 text-slate-400 cursor-not-allowed'
               }`}
             >
-              {playerCount < 2
+              {isStarting
+                ? 'Starting Game...'
+                : playerCount < 2
                 ? 'Waiting for at least 1 more player...'
                 : 'Start Game'}
             </button>
@@ -133,6 +177,16 @@ export function Lobby({ roomSnapshot, isHost }: LobbyProps) {
             </p>
           </div>
         )}
+
+        <div className="mt-4 pt-4 border-t border-slate-700/60">
+          <button
+            onClick={handleLeaveRoom}
+            disabled={isLeaving}
+            className="w-full rounded-lg py-2.5 text-sm font-medium text-slate-400 hover:text-white hover:bg-slate-700/50 transition-colors cursor-pointer disabled:opacity-50"
+          >
+            {isLeaving ? 'Leaving Room...' : 'Leave Room'}
+          </button>
+        </div>
       </div>
     </div>
   );

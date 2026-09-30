@@ -1,36 +1,16 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { socket } from '../socket';
+import { createRoom, joinRoom } from '../api';
 import { ErrorBanner } from '../components/ErrorBanner';
-import type { JoinAckPayload, ErrorPayload } from '@shared/types';
 
 export function HomePage() {
   const navigate = useNavigate();
   const [displayName, setDisplayName] = useState('');
   const [roomCodeInput, setRoomCodeInput] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
 
-  useEffect(() => {
-    const handleJoinAck = (payload: JoinAckPayload) => {
-      localStorage.setItem('playerId', payload.playerId);
-      localStorage.setItem('roomCode', payload.roomCode.toString());
-      navigate(`/room/${payload.roomCode}`);
-    };
-
-    const handleError = (payload: ErrorPayload) => {
-      setError(payload.message);
-    };
-
-    socket.on('join-ack', handleJoinAck);
-    socket.on('error', handleError);
-
-    return () => {
-      socket.off('join-ack', handleJoinAck);
-      socket.off('error', handleError);
-    };
-  }, [navigate]);
-
-  const handleCreateRoom = (e: React.FormEvent) => {
+  const handleCreateRoom = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     const trimmed = displayName.trim();
@@ -38,10 +18,21 @@ export function HomePage() {
       setError('Please enter a display name');
       return;
     }
-    socket.emit('create-room', { displayName: trimmed });
+
+    try {
+      setIsLoading(true);
+      const res = await createRoom(trimmed);
+      localStorage.setItem('playerId', res.playerId);
+      localStorage.setItem('roomCode', res.roomCode.toString());
+      navigate(`/room/${res.roomCode}`, { state: { initialSnapshot: res.snapshot } });
+    } catch (err: any) {
+      setError(err?.message || 'Failed to create room');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const handleJoinRoom = (e: React.FormEvent) => {
+  const handleJoinRoom = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     const trimmedName = displayName.trim();
@@ -56,7 +47,17 @@ export function HomePage() {
       return;
     }
 
-    socket.emit('join-room', { displayName: trimmedName, roomCode: codeNum });
+    try {
+      setIsLoading(true);
+      const res = await joinRoom(codeNum, trimmedName);
+      localStorage.setItem('playerId', res.playerId);
+      localStorage.setItem('roomCode', res.roomCode.toString());
+      navigate(`/room/${res.roomCode}`, { state: { initialSnapshot: res.snapshot } });
+    } catch (err: any) {
+      setError(err?.message || 'Failed to join room');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -85,16 +86,18 @@ export function HomePage() {
               value={displayName}
               onChange={(e) => setDisplayName(e.target.value)}
               maxLength={24}
-              className="w-full rounded-lg bg-slate-900 border border-slate-700 px-4 py-2.5 text-white placeholder-slate-500 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+              disabled={isLoading}
+              className="w-full rounded-lg bg-slate-900 border border-slate-700 px-4 py-2.5 text-white placeholder-slate-500 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 disabled:opacity-50"
             />
           </div>
 
           <div className="pt-2">
             <button
               onClick={handleCreateRoom}
-              className="w-full rounded-lg bg-indigo-600 hover:bg-indigo-500 py-3 font-semibold text-white shadow-lg transition-colors cursor-pointer"
+              disabled={isLoading}
+              className="w-full rounded-lg bg-indigo-600 hover:bg-indigo-500 py-3 font-semibold text-white shadow-lg transition-colors cursor-pointer disabled:opacity-50"
             >
-              Create New Room
+              {isLoading ? 'Creating...' : 'Create New Room'}
             </button>
           </div>
 
@@ -116,14 +119,16 @@ export function HomePage() {
                 onChange={(e) => setRoomCodeInput(e.target.value)}
                 placeholder="1000"
                 maxLength={4}
-                className="w-full rounded-lg bg-slate-900 border border-slate-700 px-4 py-2.5 text-center font-mono text-lg text-white placeholder-slate-600 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                disabled={isLoading}
+                className="w-full rounded-lg bg-slate-900 border border-slate-700 px-4 py-2.5 text-center font-mono text-lg text-white placeholder-slate-600 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 disabled:opacity-50"
               />
             </div>
             <button
               type="submit"
-              className="w-full rounded-lg bg-slate-700 hover:bg-slate-600 py-3 font-semibold text-white transition-colors cursor-pointer"
+              disabled={isLoading}
+              className="w-full rounded-lg bg-slate-700 hover:bg-slate-600 py-3 font-semibold text-white transition-colors cursor-pointer disabled:opacity-50"
             >
-              Join Room
+              {isLoading ? 'Joining...' : 'Join Room'}
             </button>
           </form>
         </div>

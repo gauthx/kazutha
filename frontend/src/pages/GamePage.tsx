@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useRoom } from '../hooks/useRoom';
 import { useHand } from '../hooks/useHand';
 import { Lobby } from '../components/Lobby';
@@ -11,7 +11,12 @@ import type { ErrorPayload } from '@shared/types';
 export function GamePage() {
   const { code } = useParams<{ code: string }>();
   const navigate = useNavigate();
-  const { roomSnapshot, isHost, localPlayerId } = useRoom();
+  const location = useLocation();
+  const initialSnapshot = location.state?.initialSnapshot;
+  const { roomSnapshot, setRoomSnapshot, isHost, localPlayerId, error: roomError } = useRoom(
+    code,
+    initialSnapshot,
+  );
   const { hand } = useHand();
   const [error, setError] = useState<string | null>(null);
   const [isConnected, setIsConnected] = useState(socket.connected);
@@ -34,11 +39,13 @@ export function GamePage() {
     };
   }, []);
 
-  if (error) {
+  const displayedError = error || roomError;
+
+  if (displayedError) {
     return (
       <div className="flex min-h-screen items-center justify-center p-4">
         <div className="w-full max-w-md space-y-4">
-          <ErrorBanner message={error} onDismiss={() => setError(null)} />
+          <ErrorBanner message={displayedError} onDismiss={() => setError(null)} />
           <button
             onClick={() => navigate('/')}
             className="w-full rounded-lg bg-indigo-600 hover:bg-indigo-500 py-2.5 text-white font-medium transition-colors cursor-pointer"
@@ -63,7 +70,7 @@ export function GamePage() {
 
   return (
     <div className="relative">
-      {!isConnected && (
+      {!isConnected && roomSnapshot.status !== 'WAITING' && (
         <div className="fixed top-4 right-4 z-50 rounded-lg bg-amber-500/90 text-slate-900 px-3 py-1.5 text-xs font-bold shadow-lg animate-pulse flex items-center gap-2">
           <span className="h-2 w-2 rounded-full bg-slate-900" />
           Reconnecting...
@@ -71,7 +78,7 @@ export function GamePage() {
       )}
 
       {roomSnapshot.status === 'WAITING' ? (
-        <Lobby roomSnapshot={roomSnapshot} isHost={isHost} />
+        <Lobby roomSnapshot={roomSnapshot} isHost={isHost} onRoomUpdate={setRoomSnapshot} />
       ) : (
         <GameTable
           roomSnapshot={roomSnapshot}

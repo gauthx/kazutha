@@ -1,17 +1,13 @@
 import {
   WebSocketGateway,
   WebSocketServer,
-  SubscribeMessage,
   OnGatewayConnection,
   OnGatewayDisconnect,
   OnGatewayInit,
-  ConnectedSocket,
-  MessageBody,
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
 import { randomUUID } from 'crypto';
 import { GameService, GameError } from './game.service.js';
-import type { JoinRoomPayload } from '@shared/types';
 
 const DISCONNECT_GRACE_MS = 30000;
 
@@ -50,7 +46,7 @@ export class GameGateway
     }
 
     const roomCode = Number(auth.roomCode);
-    const result = this.gameService.reconnectPlayer(
+    const result = this.gameService.connectPlayer(
       roomCode,
       auth.playerId,
       socket.id,
@@ -94,71 +90,6 @@ export class GameGateway
     }, DISCONNECT_GRACE_MS);
 
     this.disconnectTimers.set(player.playerId, timer);
-  }
-
-  @SubscribeMessage('create-room')
-  handleCreateRoom(
-    @ConnectedSocket() socket: Socket,
-    @MessageBody() payload: { displayName: string },
-  ) {
-    try {
-      const { roomCode, playerId, snapshot } = this.gameService.createRoom(
-        payload?.displayName,
-        socket.id,
-        socket.data.playerId,
-      );
-
-      socket.join(roomCode.toString());
-      socket.emit('join-ack', { playerId, roomCode });
-      this.server.to(roomCode.toString()).emit('room-update', snapshot);
-    } catch (err) {
-      this.handleError(socket, err);
-    }
-  }
-
-  @SubscribeMessage('join-room')
-  handleJoinRoom(
-    @ConnectedSocket() socket: Socket,
-    @MessageBody() payload: JoinRoomPayload,
-  ) {
-    try {
-      const { roomCode, playerId, snapshot } = this.gameService.joinRoom(
-        Number(payload?.roomCode),
-        payload?.displayName,
-        socket.id,
-        socket.data.playerId,
-      );
-
-      socket.join(roomCode.toString());
-      socket.emit('join-ack', { playerId, roomCode });
-      this.server.to(roomCode.toString()).emit('room-update', snapshot);
-    } catch (err) {
-      this.handleError(socket, err);
-    }
-  }
-
-  @SubscribeMessage('start-game')
-  handleStartGame(
-    @ConnectedSocket() socket: Socket,
-    @MessageBody() payload: { roomCode: number | string },
-  ) {
-    try {
-      const roomCode = Number(payload?.roomCode);
-      const { snapshot, playerAssignments } = this.gameService.startGame(
-        roomCode,
-        socket.data.playerId,
-      );
-
-      this.server.to(roomCode.toString()).emit('game-started', snapshot);
-
-      for (const assignment of playerAssignments) {
-        this.server
-          .to(assignment.socketId)
-          .emit('hand-dealt', { hand: assignment.hand });
-      }
-    } catch (err) {
-      this.handleError(socket, err);
-    }
   }
 
   private handleError(socket: Socket, err: unknown) {

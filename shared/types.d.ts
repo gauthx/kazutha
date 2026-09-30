@@ -40,7 +40,40 @@ export interface StateSyncPayload {
   roomSnapshot: RoomSnapshot;
 }
 
+export type ErrorCode =
+  | 'ROOM_NOT_FOUND'
+  | 'ROOM_FULL'
+  | 'GAME_IN_PROGRESS'
+  | 'NOT_HOST'
+  | 'NOT_ENOUGH_PLAYERS'
+  | 'INVALID_DISPLAY_NAME'
+  | 'INTERNAL_ERROR';
+
 export interface ErrorPayload {
-  code: string;
+  code: ErrorCode | string;
   message: string;
+}
+
+export interface CreateRoomPayload {
+  displayName: string;
+}
+
+export interface CreateRoomResponse {
+  roomCode: number;
+  playerId: string;
+  snapshot: RoomSnapshot;
+}
+
+export interface JoinRoomResponse {
+  roomCode: number;
+  playerId: string;
+  snapshot: RoomSnapshot;
+}
+
+export interface StartGamePayload {
+  playerId: string;
+}
+
+export interface LeaveRoomPayload {
+  playerId: string;
 }
