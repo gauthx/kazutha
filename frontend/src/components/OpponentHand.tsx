@@ -1,7 +1,13 @@
+import { useLayoutEffect, useRef, useState } from 'react';
 import CardLib from '@heruka_urgyen/react-playing-cards';
 import type { PlayerPublic } from '@shared/types';
+import { computePeek } from '../utils/handLayout';
 
 const Card = (CardLib as any).default || CardLib;
+
+const CARD_WIDTH = 50;
+const CARD_HEIGHT = 70;
+const NATURAL_PEEK = 20;
 
 interface OpponentHandProps {
   player: PlayerPublic;
@@ -9,7 +15,25 @@ interface OpponentHandProps {
 }
 
 export function OpponentHand({ player, position = 'top' }: OpponentHandProps) {
-  const cardBacks = Array.from({ length: Math.min(player.cardCount, 8) });
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [containerWidth, setContainerWidth] = useState(400);
+
+  useLayoutEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const observer = new ResizeObserver(([entry]) => {
+      setContainerWidth(entry.contentRect.width);
+    });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
+  const displayCount = Math.min(player.cardCount, 8);
+  const peek = Math.min(
+    NATURAL_PEEK,
+    computePeek(displayCount, containerWidth, CARD_WIDTH),
+  );
+  const fanWidth = displayCount === 0 ? 0 : CARD_WIDTH + (displayCount - 1) * peek;
 
   return (
     <div className={`flex flex-col items-center ${position === 'left' || position === 'right' ? 'w-48' : ''}`}>
@@ -27,12 +51,23 @@ export function OpponentHand({ player, position = 'top' }: OpponentHandProps) {
         </span>
       </div>
 
-      <div className="flex justify-center -space-x-8 overflow-hidden py-1">
-        {cardBacks.map((_, index) => (
-          <div key={index} className="shadow-md shrink-0 w-[50px] h-[70px] aspect-[5/7]">
-            <Card card="Ah" deckType="basic" height="70px" back />
-          </div>
-        ))}
+      <div ref={containerRef} className="py-1">
+        <div className="relative" style={{ width: fanWidth, height: CARD_HEIGHT }}>
+          {Array.from({ length: displayCount }).map((_, index) => (
+            <div
+              key={index}
+              className="absolute shadow-md"
+              style={{
+                left: index * peek,
+                zIndex: index,
+                width: CARD_WIDTH,
+                height: CARD_HEIGHT,
+              }}
+            >
+              <Card card="Ah" deckType="basic" height={`${CARD_HEIGHT}px`} back />
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   );
