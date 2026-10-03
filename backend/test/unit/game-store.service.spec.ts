@@ -1,6 +1,8 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { Test, TestingModule } from '@nestjs/testing';
 import { GameStoreService } from '../../src/game/game-store.service.js';
+import { Player } from '../../src/game/domain/player.js';
+import { Suit, Rank } from '../../src/game/constants.js';
 
 describe('GameStoreService', () => {
   let service: GameStoreService;
@@ -41,39 +43,36 @@ describe('GameStoreService', () => {
 
   it('removes player and reassigns host if host left', () => {
     const room = service.createRoom(1000, 'host-1');
-    room.players.set('host-1', {
-      playerId: 'host-1',
-      displayName: 'Alice',
-      socketId: 'sock-1',
-      hand: [],
-      isConnected: true,
-      lastSeen: Date.now(),
-    });
-    room.players.set('guest-2', {
-      playerId: 'guest-2',
-      displayName: 'Bob',
-      socketId: 'sock-2',
-      hand: [],
-      isConnected: true,
-      lastSeen: Date.now(),
-    });
+    room.addPlayer(
+      new Player({
+        playerId: 'host-1',
+        displayName: 'Alice',
+        socketId: 'sock-1',
+      }),
+    );
+    room.addPlayer(
+      new Player({
+        playerId: 'guest-2',
+        displayName: 'Bob',
+        socketId: 'sock-2',
+      }),
+    );
 
     const isRoomEmpty = service.removePlayer(1000, 'host-1');
     expect(isRoomEmpty).toBe(false);
-    expect(room.players.has('host-1')).toBe(false);
+    expect(room.getPlayer('host-1')).toBeUndefined();
     expect(room.hostPlayerId).toBe('guest-2');
   });
 
   it('deletes room when last player is removed', () => {
     const room = service.createRoom(1000, 'host-1');
-    room.players.set('host-1', {
-      playerId: 'host-1',
-      displayName: 'Alice',
-      socketId: 'sock-1',
-      hand: [],
-      isConnected: true,
-      lastSeen: Date.now(),
-    });
+    room.addPlayer(
+      new Player({
+        playerId: 'host-1',
+        displayName: 'Alice',
+        socketId: 'sock-1',
+      }),
+    );
 
     const isRoomEmpty = service.removePlayer(1000, 'host-1');
     expect(isRoomEmpty).toBe(true);
@@ -82,14 +81,13 @@ describe('GameStoreService', () => {
 
   it('finds player by socket id', () => {
     const room = service.createRoom(1000, 'host-1');
-    room.players.set('player-1', {
-      playerId: 'player-1',
-      displayName: 'Alice',
-      socketId: 'sock-123',
-      hand: [],
-      isConnected: true,
-      lastSeen: Date.now(),
-    });
+    room.addPlayer(
+      new Player({
+        playerId: 'player-1',
+        displayName: 'Alice',
+        socketId: 'sock-123',
+      }),
+    );
 
     const result = service.findPlayerBySocketId('sock-123');
     expect(result).toBeDefined();
@@ -101,14 +99,14 @@ describe('GameStoreService', () => {
 
   it('converts room to safe RoomSnapshot without exposing private hands', () => {
     const room = service.createRoom(1000, 'host-1');
-    room.players.set('player-1', {
-      playerId: 'player-1',
-      displayName: 'Alice',
-      socketId: 'sock-1',
-      hand: [{ suit: 'SPADES', rank: 'A' }],
-      isConnected: true,
-      lastSeen: Date.now(),
-    });
+    room.addPlayer(
+      new Player({
+        playerId: 'player-1',
+        displayName: 'Alice',
+        socketId: 'sock-1',
+        initialHand: [{ suit: Suit.SPADES, rank: Rank.A }],
+      }),
+    );
 
     const snapshot = service.toRoomSnapshot(room);
     expect(snapshot.roomCode).toBe(1000);

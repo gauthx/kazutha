@@ -27,8 +27,21 @@ export function useHand() {
     };
   }, []);
 
+  const playCard = async (card: Card): Promise<{ ok: boolean; code?: string; message?: string }> => {
+    return new Promise((resolve) => {
+      const playerId = localStorage.getItem('playerId');
+      socket.emit('play-card', { playerId, card }, (ack: any) => {
+        if (ack.ok) {
+          setHand((h) => h.filter((c) => !(c.suit === card.suit && c.rank === card.rank)));
+        }
+        resolve(ack);
+      });
+    });
+  };
+
   return {
     hand,
     setHand,
+    playCard,
   };
 }

@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { Test, TestingModule } from '@nestjs/testing';
 import { GameGateway } from '../../src/game/game.gateway.js';
 import { GameService } from '../../src/game/game.service.js';
+import { Player } from '../../src/game/domain/player.js';
 
 describe('GameGateway', () => {
   let gateway: GameGateway;
@@ -59,11 +60,12 @@ describe('GameGateway', () => {
         hostPlayerId: 'player-1',
         players: [],
       };
-      const mockPlayer = {
+      const mockPlayer = new Player({
         playerId: 'player-1',
+        displayName: 'Player 1',
         socketId: 'socket-1',
-        hand: [{ suit: 'SPADES' as const, rank: 'A' as const }],
-      };
+        initialHand: [{ suit: 'SPADES' as const, rank: 'A' as const }],
+      });
 
       mockGameService.connectPlayer.mockReturnValue({
         player: mockPlayer,
@@ -79,7 +81,7 @@ describe('GameGateway', () => {
       );
       expect(mockSocket.join).toHaveBeenCalledWith('1000');
       expect(mockSocket.emit).toHaveBeenCalledWith('state-sync', {
-        hand: mockPlayer.hand,
+        hand: [{ suit: 'SPADES', rank: 'A' }],
         roomSnapshot: mockSnapshot,
       });
       expect(mockServer.to).toHaveBeenCalledWith('1000');

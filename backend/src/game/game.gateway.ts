@@ -4,10 +4,15 @@ import {
   OnGatewayConnection,
   OnGatewayDisconnect,
   OnGatewayInit,
+  SubscribeMessage,
+  MessageBody,
+  ConnectedSocket,
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
 import { randomUUID } from 'crypto';
 import { GameService, GameError } from './game.service.js';
+import type { PlayCardPayload, PlayCardAck, PlayCardNack } from '@shared/types';
+import { ErrorCode } from './constants.js';
 
 const DISCONNECT_GRACE_MS = 30000;
 
@@ -38,14 +43,14 @@ export class GameGateway
   handleConnection(socket: Socket) {
     const auth = socket.handshake.auth as {
       playerId?: string;
-      roomCode?: number | string;
+      roomCode?: number;
     };
 
     if (!auth?.playerId || auth.roomCode === undefined) {
       return;
     }
 
-    const roomCode = Number(auth.roomCode);
+    const roomCode = auth.roomCode;
     const result = this.gameService.connectPlayer(
       roomCode,
       auth.playerId,
@@ -61,13 +66,11 @@ export class GameGateway
 
       socket.join(roomCode.toString());
       socket.emit('state-sync', {
-        hand: result.player.hand,
+        hand: [...result.player.getHand()],
         roomSnapshot: result.snapshot,
       });
 
-      this.server
-        .to(roomCode.toString())
-        .emit('room-update', result.snapshot);
+      this.server.to(roomCode.toString()).emit('room-update', result.snapshot);
     }
   }
 
@@ -85,7 +88,9 @@ export class GameGateway
       const removal = this.gameService.removePlayer(roomCode, player.playerId);
 
       if (!removal.isRoomEmpty && removal.snapshot) {
-        this.server.to(roomCode.toString()).emit('room-update', removal.snapshot);
+        this.server
+          .to(roomCode.toString())
+          .emit('room-update', removal.snapshot);
       }
     }, DISCONNECT_GRACE_MS);
 
@@ -98,8 +103,57 @@ export class GameGateway
       return;
     }
     socket.emit('error', {
-      code: 'INTERNAL_ERROR',
+      code: ErrorCode.INTERNAL_ERROR,
       message: 'An unexpected error occurred',
     });
+  }
+
+  @SubscribeMessage('play-card')
+  handlePlayCard(
+    @ConnectedSocket() socket: Socket,
+    @MessageBody() payload: PlayCardPayload,
+  ): PlayCardAck | PlayCardNack {
+    const auth = socket.handshake.auth as { roomCode?: number };
+    const roomCode = auth.roomCode;
+    const playerId = payload.playerId || socket.data.playerId;
+
+    if (roomCode === undefined) {
+      return {
+        ok: false,
+        code: ErrorCode.ROOM_NOT_FOUND,
+        message: 'Invalid room',
+      };
+    }
+
+    try {
+      const result = this.gameService.playCard(
+        roomCode,
+        playerId,
+        payload.card,
+      );
+
+      if (result.roundEnded) {
+        this.server.to(roomCode.toString()).emit('round-ended', {
+          discardedCards: result.discardedCards,
+          nextStarterPlayerId: result.nextStarterPlayerId,
+          roomSnapshot: result.snapshot,
+        });
+      } else {
+        this.server.to(roomCode.toString()).emit('round-update', {
+          roomSnapshot: result.snapshot,
+        });
+      }
+
+      return { ok: true };
+    } catch (err) {
+      if (err instanceof GameError) {
+        return { ok: false, code: err.code as any, message: err.message };
+      }
+      return {
+        ok: false,
+        code: ErrorCode.INTERNAL_ERROR,
+        message: 'Unexpected error',
+      };
+    }
   }
 }

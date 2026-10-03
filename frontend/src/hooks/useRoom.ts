@@ -4,7 +4,7 @@ import { getRoom } from '../api';
 import type { RoomSnapshot, StateSyncPayload } from '@shared/types';
 
 export function useRoom(
-  roomCodeInput?: number | string,
+  roomCodeInput?: number,
   initialSnapshot?: RoomSnapshot | null,
 ) {
   const [roomSnapshot, setRoomSnapshot] = useState<RoomSnapshot | null>(
@@ -15,7 +15,8 @@ export function useRoom(
 
   const localPlayerId = localStorage.getItem('playerId');
   const storedRoomCode = localStorage.getItem('roomCode');
-  const code = roomCodeInput || storedRoomCode;
+  const code: number | undefined =
+    roomCodeInput ?? (storedRoomCode ? parseInt(storedRoomCode, 10) : undefined);
 
   const stopPolling = useCallback(() => {
     if (pollingRef.current) {
@@ -26,20 +27,15 @@ export function useRoom(
 
   // Poll room snapshot while game is in WAITING status (Lobby)
   useEffect(() => {
-    if (!code) return;
-    const numCode = Number(code);
-    if (isNaN(numCode)) {
-      setError('Invalid room code');
-      return;
-    }
+    if (code === undefined || isNaN(code)) return;
 
     const fetchSnapshot = async () => {
       try {
-        const snapshot = await getRoom(numCode);
+        const snapshot = await getRoom(code);
         setRoomSnapshot(snapshot);
         if (snapshot.status === 'IN_PROGRESS') {
           stopPolling();
-          connectSocket(localPlayerId || undefined, numCode);
+          connectSocket(localPlayerId || undefined, code);
         }
       } catch (err: any) {
         setError(err?.message || 'Failed to fetch room');
@@ -53,7 +49,7 @@ export function useRoom(
       pollingRef.current = setInterval(fetchSnapshot, 2000);
     } else if (roomSnapshot.status === 'IN_PROGRESS') {
       stopPolling();
-      connectSocket(localPlayerId || undefined, numCode);
+      connectSocket(localPlayerId || undefined, code);
     }
 
     return () => {
@@ -77,14 +73,32 @@ export function useRoom(
       }
     };
 
+    const handleRoundStarted = (payload: import('@shared/types').RoundStartedPayload) => {
+      setRoomSnapshot(payload.roomSnapshot);
+    };
+
+    const handleRoundUpdate = (payload: import('@shared/types').RoundUpdatePayload) => {
+      setRoomSnapshot(payload.roomSnapshot);
+    };
+
+    const handleRoundEnded = (payload: import('@shared/types').RoundEndedPayload) => {
+      setRoomSnapshot(payload.roomSnapshot);
+    };
+
     socket.on('room-update', handleRoomUpdate);
     socket.on('game-started', handleGameStarted);
     socket.on('state-sync', handleStateSync);
+    socket.on('round-started', handleRoundStarted);
+    socket.on('round-update', handleRoundUpdate);
+    socket.on('round-ended', handleRoundEnded);
 
     return () => {
       socket.off('room-update', handleRoomUpdate);
       socket.off('game-started', handleGameStarted);
       socket.off('state-sync', handleStateSync);
+      socket.off('round-started', handleRoundStarted);
+      socket.off('round-update', handleRoundUpdate);
+      socket.off('round-ended', handleRoundEnded);
     };
   }, []);
 

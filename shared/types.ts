@@ -18,11 +18,25 @@ export interface PlayerPrivate extends PlayerPublic {
   hand: Card[];
 }
 
+export interface PlayedCardPublic {
+  playerId: string;
+  card: Card;
+}
+
+export interface RoundSnapshot {
+  roundNumber: number;
+  ledSuit: Suit;
+  currentTurnPlayerId: string;
+  playedCards: PlayedCardPublic[];
+}
+
 export interface RoomSnapshot {
   roomCode: number;
   status: GameStatus;
   hostPlayerId: string;
   players: PlayerPublic[];
+  currentRound: RoundSnapshot | null;
+  nextRoundStarterId?: string | null;
 }
 
 export interface JoinRoomPayload {
@@ -47,7 +61,10 @@ export type ErrorCode =
   | 'NOT_HOST'
   | 'NOT_ENOUGH_PLAYERS'
   | 'INVALID_DISPLAY_NAME'
-  | 'INTERNAL_ERROR';
+  | 'INTERNAL_ERROR'
+  | 'NOT_YOUR_TURN'
+  | 'MUST_FOLLOW_SUIT'
+  | 'CARD_NOT_IN_HAND';
 
 export interface ErrorPayload {
   code: ErrorCode | string;
@@ -76,4 +93,34 @@ export interface StartGamePayload {
 
 export interface LeaveRoomPayload {
   playerId: string;
+}
+
+export interface PlayCardPayload {
+  playerId: string;
+  card: Card;
+}
+
+export interface RoundStartedPayload {
+  roomSnapshot: RoomSnapshot;
+  autoPlayedCard?: PlayedCardPublic;
+}
+
+export interface RoundUpdatePayload {
+  roomSnapshot: RoomSnapshot;
+}
+
+export interface RoundEndedPayload {
+  discardedCards: Card[];
+  nextStarterPlayerId: string;
+  roomSnapshot: RoomSnapshot;
+}
+
+export interface PlayCardAck {
+  ok: true;
+}
+
+export interface PlayCardNack {
+  ok: false;
+  code: ErrorCode;
+  message: string;
 }

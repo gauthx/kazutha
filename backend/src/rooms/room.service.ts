@@ -3,7 +3,8 @@ import { randomUUID } from 'crypto';
 import { GameStoreService } from '../game/game-store.service.js';
 import { generateRoomCode } from '../utils/room-code.js';
 import { GameError } from '../game/game.service.js';
-import { ErrorCode } from './rooms.controller.js';
+import { ErrorCode } from '../game/constants.js';
+import { Player } from '../game/domain/player.js';
 import type { RoomSnapshot } from '@shared/types';
 
 @Injectable()
@@ -25,79 +26,48 @@ export class RoomService {
     const validName = this.validateDisplayName(displayName);
     const roomCode = generateRoomCode();
     const playerId = customPlayerId || randomUUID();
-    const room = this.store.createRoom(roomCode, playerId);
+    const game = this.store.createRoom(roomCode, playerId);
 
-    room.players.set(playerId, {
-      playerId,
-      displayName: validName,
-      socketId: '',
-      hand: [],
-      isConnected: true,
-      lastSeen: Date.now(),
-    });
+    game.addPlayer(
+      new Player({
+        playerId,
+        displayName: validName,
+      }),
+    );
 
-    return {
-      roomCode,
-      playerId,
-      snapshot: this.store.toRoomSnapshot(room),
-    };
+    return { roomCode, playerId, snapshot: game.toSnapshot() };
   }
 
-  joinRoom(
-    roomCode: number,
-    displayName: string,
-    customPlayerId?: string,
-  ) {
+  joinRoom(roomCode: number, displayName: string, customPlayerId?: string) {
     const validName = this.validateDisplayName(displayName);
-    const room = this.store.getRoom(roomCode);
-
-    if (!room) {
+    const game = this.store.getRoom(roomCode);
+    if (!game) {
       throw new GameError(ErrorCode.ROOM_NOT_FOUND, 'Room not found');
     }
 
-    if (room.status !== 'WAITING') {
-      throw new GameError(
-        ErrorCode.GAME_IN_PROGRESS,
-        'Game is already in progress',
-      );
-    }
-
-    if (room.players.size >= 6) {
-      throw new GameError(ErrorCode.ROOM_FULL, 'Room is full (max 6 players)');
-    }
-
     const playerId = customPlayerId || randomUUID();
-    room.players.set(playerId, {
-      playerId,
-      displayName: validName,
-      socketId: '',
-      hand: [],
-      isConnected: true,
-      lastSeen: Date.now(),
-    });
+    game.addPlayer(
+      new Player({
+        playerId,
+        displayName: validName,
+      }),
+    );
 
-    return {
-      roomCode,
-      playerId,
-      snapshot: this.store.toRoomSnapshot(room),
-    };
+    return { roomCode, playerId, snapshot: game.toSnapshot() };
   }
 
   removePlayer(roomCode: number, playerId: string) {
     const isRoomEmpty = this.store.removePlayer(roomCode, playerId);
-    if (isRoomEmpty) {
-      return { isRoomEmpty: true };
-    }
-
-    const room = this.store.getRoom(roomCode);
+    if (isRoomEmpty) return { isRoomEmpty: true };
+    const game = this.store.getRoom(roomCode);
     return {
       isRoomEmpty: false,
-      snapshot: room ? this.store.toRoomSnapshot(room) : undefined,
+      snapshot: game ? game.toSnapshot() : undefined,
     };
   }
 
   getRoomSnapshot(roomCode: number): RoomSnapshot | null {
-    const room = this.store.getRoom(roomCode);
-    return room ? this.store.toRoomSnapshot(room) : null;
+    const game = this.store.getRoom(roomCode);
+    return game ? game.toSnapshot() : null;
   }
 }

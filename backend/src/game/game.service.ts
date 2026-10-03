@@ -2,6 +2,8 @@ import { Injectable } from '@nestjs/common';
 import { GameStoreService } from './game-store.service.js';
 import { DeckService } from './deck.service.js';
 import type { Card } from '@shared/types';
+import { ErrorCode } from './constants.js';
+import type { PlayCardResult } from './domain/game.js';
 
 export class GameError extends Error {
   constructor(
@@ -27,61 +29,32 @@ export class GameService {
   ) {}
 
   startGame(roomCode: number, requesterPlayerId: string) {
-    const room = this.store.getRoom(roomCode);
-    if (!room) {
-      throw new GameError('ROOM_NOT_FOUND', 'Room not found');
+    const game = this.store.getRoom(roomCode);
+    if (!game) {
+      throw new GameError(ErrorCode.ROOM_NOT_FOUND, 'Room not found');
+    }
+    if (game.hostPlayerId !== requesterPlayerId) {
+      throw new GameError(ErrorCode.NOT_HOST, 'Only the host can start the game');
     }
 
-    if (room.hostPlayerId !== requesterPlayerId) {
-      throw new GameError('NOT_HOST', 'Only the host can start the game');
-    }
-
-    if (room.players.size < 2) {
-      throw new GameError(
-        'NOT_ENOUGH_PLAYERS',
-        'At least 2 players are required to start',
-      );
-    }
-
-    if (room.status !== 'WAITING') {
-      throw new GameError(
-        'GAME_IN_PROGRESS',
-        'Game is already in progress',
-      );
-    }
-
-    room.status = 'IN_PROGRESS';
     const deck = this.deckService.shuffleDeck(this.deckService.createDeck());
-    const hands = this.deckService.dealCards(deck, room.players.size);
+    const hands = this.deckService.dealCards(deck, game.playerCount);
 
-    const playerAssignments: PlayerHandAssignment[] = [];
-    let index = 0;
-    for (const player of room.players.values()) {
-      player.hand = hands[index] || [];
-      playerAssignments.push({
-        playerId: player.playerId,
-        socketId: player.socketId,
-        hand: player.hand,
-      });
-      index++;
-    }
+    const result = game.start(hands);
 
     return {
-      snapshot: this.store.toRoomSnapshot(room),
-      playerAssignments,
+      snapshot: game.toSnapshot(),
+      playerAssignments: result.playerAssignments,
+      autoPlayedCard: result.autoPlayedCard,
     };
   }
 
   connectPlayer(roomCode: number, playerId: string, socketId: string) {
-    const room = this.store.getRoom(roomCode);
-    if (!room) {
-      return null;
-    }
+    const game = this.store.getRoom(roomCode);
+    if (!game) return null;
 
-    const player = room.players.get(playerId);
-    if (!player) {
-      return null;
-    }
+    const player = game.getPlayer(playerId);
+    if (!player) return null;
 
     player.socketId = socketId;
     player.isConnected = true;
@@ -89,24 +62,22 @@ export class GameService {
 
     return {
       player,
-      snapshot: this.store.toRoomSnapshot(room),
+      snapshot: game.toSnapshot(),
     };
   }
 
   disconnectPlayer(socketId: string) {
     const found = this.store.findPlayerBySocketId(socketId);
-    if (!found) {
-      return null;
-    }
+    if (!found) return null;
 
-    const { room, player } = found;
+    const { room: game, player } = found;
     player.isConnected = false;
     player.lastSeen = Date.now();
 
     return {
-      roomCode: room.roomCode,
+      roomCode: game.roomCode,
       player,
-      snapshot: this.store.toRoomSnapshot(room),
+      snapshot: game.toSnapshot(),
     };
   }
 
@@ -116,10 +87,19 @@ export class GameService {
       return { isRoomEmpty: true };
     }
 
-    const room = this.store.getRoom(roomCode);
+    const game = this.store.getRoom(roomCode);
     return {
       isRoomEmpty: false,
-      snapshot: room ? this.store.toRoomSnapshot(room) : undefined,
+      snapshot: game ? game.toSnapshot() : undefined,
     };
+  }
+
+  playCard(roomCode: number, playerId: string, card: Card): PlayCardResult {
+    const game = this.store.getRoom(roomCode);
+    if (!game) {
+      throw new GameError(ErrorCode.ROOM_NOT_FOUND, 'Room not found');
+    }
+
+    return game.playCard(playerId, card);
   }
 }

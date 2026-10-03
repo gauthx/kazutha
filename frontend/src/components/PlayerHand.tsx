@@ -1,6 +1,6 @@
 import { useLayoutEffect, useRef, useState } from 'react';
 import CardLib from '@heruka_urgyen/react-playing-cards';
-import type { Card as CardType } from '@shared/types';
+import type { Card as CardType, RoundSnapshot } from '@shared/types';
 import { toCardCode } from '../utils/cardCode';
 import { computePeek } from '../utils/handLayout';
 
@@ -11,9 +11,13 @@ const CARD_HEIGHT = 120;
 
 interface PlayerHandProps {
   hand: CardType[];
+  currentRound: RoundSnapshot | null;
+  localPlayerId: string;
+  onPlayCard?: (card: CardType) => void;
+  isSubmitting?: boolean;
 }
 
-export function PlayerHand({ hand }: PlayerHandProps) {
+export function PlayerHand({ hand, currentRound, localPlayerId, onPlayCard, isSubmitting }: PlayerHandProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [containerWidth, setContainerWidth] = useState(1280);
 
@@ -30,6 +34,17 @@ export function PlayerHand({ hand }: PlayerHandProps) {
   const peek = computePeek(hand.length, containerWidth, CARD_WIDTH);
   const fanWidth = hand.length === 0 ? 0 : CARD_WIDTH + (hand.length - 1) * peek;
 
+  const isMyTurn = currentRound?.currentTurnPlayerId === localPlayerId;
+  const ledSuit = currentRound?.ledSuit ?? null;
+  const hasLedSuit = ledSuit ? hand.some((c) => c.suit === ledSuit) : false;
+
+  const isPlayable = (card: CardType) => {
+    if (!isMyTurn || isSubmitting) return false;
+    if (!ledSuit) return true;
+    if (hasLedSuit) return card.suit === ledSuit;
+    return true;
+  };
+
   return (
     <div className="w-full flex flex-col items-center py-4">
       <div className="mb-3 text-xs uppercase tracking-wider text-slate-400 font-semibold">
@@ -42,16 +57,22 @@ export function PlayerHand({ hand }: PlayerHandProps) {
         >
           {hand.map((card, index) => {
             const code = toCardCode(card);
+            const playable = isPlayable(card);
+            const classNames = playable
+              ? 'hover:-translate-y-8 cursor-pointer'
+              : 'opacity-40 cursor-not-allowed';
+
             return (
               <div
                 key={`${code}-${index}`}
-                className="absolute transition-transform hover:-translate-y-8 duration-200 cursor-pointer shadow-lg rounded-lg"
+                className={`absolute transition-transform duration-200 shadow-lg rounded-lg ${classNames}`}
                 style={{
                   left: index * peek,
                   zIndex: index,
                   width: CARD_WIDTH,
                   height: CARD_HEIGHT,
                 }}
+                onClick={() => playable && onPlayCard && onPlayCard(card)}
               >
                 <Card card={code} deckType="basic" height={`${CARD_HEIGHT}px`} />
               </div>

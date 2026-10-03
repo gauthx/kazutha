@@ -43,6 +43,8 @@ describe('DeckService', () => {
 
   it('throws error when numPlayers is less than 1', () => {
     const deck = service.createDeck();
-    expect(() => service.dealCards(deck, 0)).toThrow('numPlayers must be at least 1');
+    expect(() => service.dealCards(deck, 0)).toThrow(
+      'numPlayers must be at least 1',
+    );
   });
 });

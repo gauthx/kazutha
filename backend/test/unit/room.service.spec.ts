@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { RoomService } from '../../src/rooms/room.service.js';
 import { GameStoreService } from '../../src/game/game-store.service.js';
 import { GameError } from '../../src/game/game.service.js';
-import { ErrorCode } from '../../src/rooms/rooms.controller.js';
+import { ErrorCode, GameStatus } from '../../src/game/constants.js';
 
 describe('RoomService', () => {
   let roomService: RoomService;
@@ -21,7 +21,7 @@ describe('RoomService', () => {
       expect(result.roomCode).toBeLessThanOrEqual(9999);
       expect(result.playerId).toBeDefined();
       expect(result.snapshot.hostPlayerId).toBe(result.playerId);
-      expect(result.snapshot.status).toBe('WAITING');
+      expect(result.snapshot.status).toBe(GameStatus.WAITING);
       expect(result.snapshot.players).toHaveLength(1);
       expect(result.snapshot.players[0].displayName).toBe('Alice');
     });
@@ -62,7 +62,9 @@ describe('RoomService', () => {
         roomService.joinRoom(created.roomCode, `Player${i}`);
       }
 
-      expect(() => roomService.joinRoom(created.roomCode, 'Player7')).toThrow(GameError);
+      expect(() => roomService.joinRoom(created.roomCode, 'Player7')).toThrow(
+        GameError,
+      );
       try {
         roomService.joinRoom(created.roomCode, 'Player7');
       } catch (err: any) {
@@ -76,7 +78,10 @@ describe('RoomService', () => {
       const created = roomService.createRoom('Alice');
       const joined = roomService.joinRoom(created.roomCode, 'Bob');
 
-      const result = roomService.removePlayer(created.roomCode, created.playerId);
+      const result = roomService.removePlayer(
+        created.roomCode,
+        created.playerId,
+      );
       expect(result.isRoomEmpty).toBe(false);
       expect(result.snapshot?.players).toHaveLength(1);
       expect(result.snapshot?.hostPlayerId).toBe(joined.playerId);
@@ -84,7 +89,10 @@ describe('RoomService', () => {
 
     it('deletes room when last player leaves', () => {
       const created = roomService.createRoom('Alice');
-      const result = roomService.removePlayer(created.roomCode, created.playerId);
+      const result = roomService.removePlayer(
+        created.roomCode,
+        created.playerId,
+      );
       expect(result.isRoomEmpty).toBe(true);
       expect(roomService.getRoomSnapshot(created.roomCode)).toBeNull();
     });

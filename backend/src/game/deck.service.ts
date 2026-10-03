@@ -1,8 +1,29 @@
 import { Injectable } from '@nestjs/common';
 import type { Card, Suit, Rank } from '@shared/types';
+import { Suit as SuitConst, Rank as RankConst } from './constants.js';
 
-export const SUITS: Suit[] = ['SPADES', 'HEARTS', 'DIAMONDS', 'CLUBS'];
-export const RANKS: Rank[] = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'];
+export const SUITS: Suit[] = [
+  SuitConst.SPADES,
+  SuitConst.HEARTS,
+  SuitConst.DIAMONDS,
+  SuitConst.CLUBS,
+];
+
+export const RANKS: Rank[] = [
+  RankConst.A,
+  RankConst.TWO,
+  RankConst.THREE,
+  RankConst.FOUR,
+  RankConst.FIVE,
+  RankConst.SIX,
+  RankConst.SEVEN,
+  RankConst.EIGHT,
+  RankConst.NINE,
+  RankConst.TEN,
+  RankConst.J,
+  RankConst.Q,
+  RankConst.K,
+];
 
 @Injectable()
 export class DeckService {

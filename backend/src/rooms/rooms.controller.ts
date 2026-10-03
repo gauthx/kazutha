@@ -6,9 +6,12 @@ import {
   Param,
   HttpException,
   HttpStatus,
+  ParseIntPipe,
 } from '@nestjs/common';
 import { GameService, GameError } from '../game/game.service.js';
 import { RoomService } from './room.service.js';
+import { ErrorCode } from '../game/constants.js';
+import { GameGateway } from '../game/game.gateway.js';
 import type {
   CreateRoomPayload,
   CreateRoomResponse,
@@ -17,19 +20,10 @@ import type {
   StartGamePayload,
   LeaveRoomPayload,
   RoomSnapshot,
+  ErrorCode as ErrorCodeType,
 } from '@shared/types';
 
-export enum ErrorCode {
-  ROOM_NOT_FOUND = 'ROOM_NOT_FOUND',
-  ROOM_FULL = 'ROOM_FULL',
-  GAME_IN_PROGRESS = 'GAME_IN_PROGRESS',
-  NOT_HOST = 'NOT_HOST',
-  NOT_ENOUGH_PLAYERS = 'NOT_ENOUGH_PLAYERS',
-  INVALID_DISPLAY_NAME = 'INVALID_DISPLAY_NAME',
-  INTERNAL_ERROR = 'INTERNAL_ERROR',
-}
-
-const ERROR_STATUS_MAP: Record<ErrorCode, HttpStatus> = {
+const ERROR_STATUS_MAP: Record<ErrorCodeType, HttpStatus> = {
   [ErrorCode.ROOM_NOT_FOUND]: HttpStatus.NOT_FOUND,
   [ErrorCode.NOT_HOST]: HttpStatus.FORBIDDEN,
   [ErrorCode.ROOM_FULL]: HttpStatus.CONFLICT,
@@ -37,12 +31,15 @@ const ERROR_STATUS_MAP: Record<ErrorCode, HttpStatus> = {
   [ErrorCode.INVALID_DISPLAY_NAME]: HttpStatus.BAD_REQUEST,
   [ErrorCode.NOT_ENOUGH_PLAYERS]: HttpStatus.BAD_REQUEST,
   [ErrorCode.INTERNAL_ERROR]: HttpStatus.INTERNAL_SERVER_ERROR,
+  [ErrorCode.NOT_YOUR_TURN]: HttpStatus.BAD_REQUEST,
+  [ErrorCode.MUST_FOLLOW_SUIT]: HttpStatus.BAD_REQUEST,
+  [ErrorCode.CARD_NOT_IN_HAND]: HttpStatus.BAD_REQUEST,
 };
 
 function toHttpException(err: unknown): HttpException {
   if (err instanceof GameError) {
     const status =
-      ERROR_STATUS_MAP[err.code as ErrorCode] ?? HttpStatus.BAD_REQUEST;
+      ERROR_STATUS_MAP[err.code as ErrorCodeType] ?? HttpStatus.BAD_REQUEST;
     return new HttpException({ code: err.code, message: err.message }, status);
   }
   if (err instanceof HttpException) {
@@ -59,6 +56,7 @@ export class RoomsController {
   constructor(
     private readonly roomService: RoomService,
     private readonly gameService: GameService,
+    private readonly gameGateway: GameGateway,
   ) {}
 
   @Post()
@@ -77,15 +75,14 @@ export class RoomsController {
 
   @Post(':code/join')
   joinRoom(
-    @Param('code') code: string,
+    @Param('code', ParseIntPipe) roomCode: number,
     @Body() body: Partial<JoinRoomPayload>,
   ): JoinRoomResponse {
     try {
-      const roomCode = Number(code);
-      if (isNaN(roomCode)) {
-        throw new GameError(ErrorCode.ROOM_NOT_FOUND, 'Room not found');
-      }
-      const result = this.roomService.joinRoom(roomCode, body?.displayName || '');
+      const result = this.roomService.joinRoom(
+        roomCode,
+        body?.displayName || '',
+      );
       return {
         roomCode: result.roomCode,
         playerId: result.playerId,
@@ -97,14 +94,7 @@ export class RoomsController {
   }
 
   @Get(':code')
-  getRoom(@Param('code') code: string): RoomSnapshot {
-    const roomCode = Number(code);
-    if (isNaN(roomCode)) {
-      throw new HttpException(
-        { code: ErrorCode.ROOM_NOT_FOUND, message: 'Room not found' },
-        HttpStatus.NOT_FOUND,
-      );
-    }
+  getRoom(@Param('code', ParseIntPipe) roomCode: number): RoomSnapshot {
     const snapshot = this.roomService.getRoomSnapshot(roomCode);
     if (!snapshot) {
       throw new HttpException(
@@ -117,15 +107,26 @@ export class RoomsController {
 
   @Post(':code/start')
   startGame(
-    @Param('code') code: string,
+    @Param('code', ParseIntPipe) roomCode: number,
     @Body() body: StartGamePayload,
   ): { snapshot: RoomSnapshot } {
     try {
-      const roomCode = Number(code);
-      if (isNaN(roomCode)) {
-        throw new GameError(ErrorCode.ROOM_NOT_FOUND, 'Room not found');
-      }
       const result = this.gameService.startGame(roomCode, body?.playerId);
+
+      this.gameGateway.server.to(roomCode.toString()).emit('round-started', {
+        roomSnapshot: result.snapshot,
+        autoPlayedCard: result.autoPlayedCard,
+      });
+
+      for (const p of result.playerAssignments) {
+        if (p.socketId) {
+          this.gameGateway.server.to(p.socketId).emit('state-sync', {
+            hand: p.hand,
+            roomSnapshot: result.snapshot,
+          });
+        }
+      }
+
       return { snapshot: result.snapshot };
     } catch (err) {
       throw toHttpException(err);
@@ -134,14 +135,10 @@ export class RoomsController {
 
   @Post(':code/leave')
   leaveRoom(
-    @Param('code') code: string,
+    @Param('code', ParseIntPipe) roomCode: number,
     @Body() body: LeaveRoomPayload,
   ): { success: boolean } {
     try {
-      const roomCode = Number(code);
-      if (isNaN(roomCode)) {
-        return { success: true };
-      }
       this.roomService.removePlayer(roomCode, body?.playerId);
       return { success: true };
     } catch (err) {

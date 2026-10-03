@@ -3,6 +3,9 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { GameService, GameError } from '../../src/game/game.service.js';
 import { GameStoreService } from '../../src/game/game-store.service.js';
 import { DeckService } from '../../src/game/deck.service.js';
+import { Game } from '../../src/game/domain/game.js';
+import { Player } from '../../src/game/domain/player.js';
+import { GameStatus, Suit, Rank } from '../../src/game/constants.js';
 
 describe('GameService', () => {
   let service: GameService;
@@ -54,60 +57,45 @@ describe('GameService', () => {
     });
 
     it('throws GameError if requester is not the host', () => {
-      mockStore.getRoom.mockReturnValue({
-        roomCode: 1000,
-        hostPlayerId: 'host-1',
-        players: new Map([
-          ['host-1', {}],
-          ['guest-1', {}],
-        ]),
-        status: 'WAITING',
-      });
+      const game = new Game({ roomCode: 1000, hostPlayerId: 'host-1' });
+      game.addPlayer(new Player({ playerId: 'host-1', displayName: 'Host' }));
+      game.addPlayer(new Player({ playerId: 'guest-1', displayName: 'Guest' }));
+      mockStore.getRoom.mockReturnValue(game);
 
       expect(() => service.startGame(1000, 'not-host')).toThrow(GameError);
     });
 
     it('throws GameError if fewer than 2 players', () => {
-      mockStore.getRoom.mockReturnValue({
-        roomCode: 1000,
-        hostPlayerId: 'host-1',
-        players: new Map([['host-1', {}]]),
-        status: 'WAITING',
-      });
+      const game = new Game({ roomCode: 1000, hostPlayerId: 'host-1' });
+      game.addPlayer(new Player({ playerId: 'host-1', displayName: 'Host' }));
+      mockStore.getRoom.mockReturnValue(game);
 
       expect(() => service.startGame(1000, 'host-1')).toThrow(GameError);
     });
 
     it('shuffles, deals cards, and returns playerAssignments', () => {
-      const p1 = { playerId: 'host-1', socketId: 's1', hand: [] };
-      const p2 = { playerId: 'guest-1', socketId: 's2', hand: [] };
-      const mockRoom = {
-        roomCode: 1000,
-        hostPlayerId: 'host-1',
-        players: new Map([
-          ['host-1', p1],
-          ['guest-1', p2],
-        ]),
-        status: 'WAITING',
-      };
-      mockStore.getRoom.mockReturnValue(mockRoom);
-      mockStore.toRoomSnapshot.mockReturnValue({
-        roomCode: 1000,
-        status: 'IN_PROGRESS',
-        hostPlayerId: 'host-1',
-        players: [],
-      });
+      const game = new Game({ roomCode: 1000, hostPlayerId: 'host-1' });
+      game.addPlayer(new Player({ playerId: 'host-1', displayName: 'Host', socketId: 's1' }));
+      game.addPlayer(new Player({ playerId: 'guest-1', displayName: 'Guest', socketId: 's2' }));
+      mockStore.getRoom.mockReturnValue(game);
 
-      const mockDeck = [{ suit: 'SPADES' as const, rank: 'A' as const }];
+      const mockDeck = [
+        { suit: Suit.SPADES, rank: Rank.A },
+        { suit: Suit.HEARTS, rank: Rank.K },
+      ];
       mockDeckService.createDeck.mockReturnValue(mockDeck);
       mockDeckService.shuffleDeck.mockReturnValue(mockDeck);
-      mockDeckService.dealCards.mockReturnValue([mockDeck, mockDeck]);
+      mockDeckService.dealCards.mockReturnValue([
+        [{ suit: Suit.SPADES, rank: Rank.A }],
+        [{ suit: Suit.HEARTS, rank: Rank.K }],
+      ]);
 
       const result = service.startGame(1000, 'host-1');
-      expect(mockRoom.status).toBe('IN_PROGRESS');
+      expect(game.status).toBe(GameStatus.IN_PROGRESS);
       expect(result.playerAssignments.length).toBe(2);
       expect(result.playerAssignments[0].socketId).toBe('s1');
       expect(result.playerAssignments[1].socketId).toBe('s2');
+      expect(result.autoPlayedCard.card).toEqual({ suit: Suit.SPADES, rank: Rank.A });
     });
   });
 
@@ -118,13 +106,15 @@ describe('GameService', () => {
     });
 
     it('updates player socketId and marks connected', () => {
-      const player = { playerId: 'p-1', socketId: '', isConnected: false, lastSeen: 0 };
-      const room = {
-        roomCode: 1000,
-        players: new Map([['p-1', player]]),
-      };
-      mockStore.getRoom.mockReturnValue(room);
-      mockStore.toRoomSnapshot.mockReturnValue({ roomCode: 1000, players: [] });
+      const game = new Game({ roomCode: 1000 });
+      const player = new Player({
+        playerId: 'p-1',
+        displayName: 'P1',
+        socketId: '',
+        isConnected: false,
+      });
+      game.addPlayer(player);
+      mockStore.getRoom.mockReturnValue(game);
 
       const result = service.connectPlayer(1000, 'p-1', 'sock-1');
       expect(result).not.toBeNull();
@@ -140,10 +130,10 @@ describe('GameService', () => {
     });
 
     it('marks player as disconnected and returns snapshot', () => {
-      const player = { playerId: 'p-1', isConnected: true, lastSeen: 0 };
-      const room = { roomCode: 1000 };
-      mockStore.findPlayerBySocketId.mockReturnValue({ room, player });
-      mockStore.toRoomSnapshot.mockReturnValue({ roomCode: 1000 });
+      const game = new Game({ roomCode: 1000 });
+      const player = new Player({ playerId: 'p-1', displayName: 'P1', isConnected: true });
+      game.addPlayer(player);
+      mockStore.findPlayerBySocketId.mockReturnValue({ room: game, player });
 
       const result = service.disconnectPlayer('sock-1');
       expect(result).not.toBeNull();
@@ -154,9 +144,9 @@ describe('GameService', () => {
 
   describe('removePlayer', () => {
     it('delegates to store.removePlayer', () => {
+      const game = new Game({ roomCode: 1000 });
       mockStore.removePlayer.mockReturnValue(false);
-      mockStore.getRoom.mockReturnValue({ roomCode: 1000 });
-      mockStore.toRoomSnapshot.mockReturnValue({ roomCode: 1000 });
+      mockStore.getRoom.mockReturnValue(game);
 
       const result = service.removePlayer(1000, 'p-1');
       expect(mockStore.removePlayer).toHaveBeenCalledWith(1000, 'p-1');

@@ -1,8 +1,10 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { HttpException, HttpStatus } from '@nestjs/common';
-import { RoomsController, ErrorCode } from '../../src/rooms/rooms.controller.js';
+import { RoomsController } from '../../src/rooms/rooms.controller.js';
 import { GameService, GameError } from '../../src/game/game.service.js';
 import { RoomService } from '../../src/rooms/room.service.js';
+import { GameGateway } from '../../src/game/game.gateway.js';
+import { ErrorCode, GameStatus } from '../../src/game/constants.js';
 
 describe('RoomsController', () => {
   let controller: RoomsController;
@@ -15,10 +17,15 @@ describe('RoomsController', () => {
   let mockGameService: {
     startGame: ReturnType<typeof vi.fn>;
   };
+  let mockGameGateway: {
+    server: {
+      to: ReturnType<typeof vi.fn>;
+    };
+  };
 
   const sampleSnapshot = {
     roomCode: 1000,
-    status: 'WAITING' as const,
+    status: GameStatus.WAITING,
     hostPlayerId: 'host-1',
     players: [
       {
@@ -28,6 +35,7 @@ describe('RoomsController', () => {
         isConnected: true,
       },
     ],
+    currentRound: null,
   };
 
   beforeEach(() => {
@@ -42,9 +50,16 @@ describe('RoomsController', () => {
       startGame: vi.fn(),
     };
 
+    mockGameGateway = {
+      server: {
+        to: vi.fn().mockReturnValue({ emit: vi.fn() }),
+      },
+    };
+
     controller = new RoomsController(
       mockRoomService as unknown as RoomService,
       mockGameService as unknown as GameService,
+      mockGameGateway as unknown as GameGateway,
     );
   });
 
@@ -68,10 +83,15 @@ describe('RoomsController', () => {
 
     it('throws BAD_REQUEST when display name is invalid', () => {
       mockRoomService.createRoom.mockImplementation(() => {
-        throw new GameError(ErrorCode.INVALID_DISPLAY_NAME, 'Invalid display name');
+        throw new GameError(
+          ErrorCode.INVALID_DISPLAY_NAME,
+          'Invalid display name',
+        );
       });
 
-      expect(() => controller.createRoom({ displayName: '' })).toThrow(HttpException);
+      expect(() => controller.createRoom({ displayName: '' })).toThrow(
+        HttpException,
+      );
       try {
         controller.createRoom({ displayName: '' });
       } catch (err: any) {
@@ -92,7 +112,7 @@ describe('RoomsController', () => {
         snapshot: sampleSnapshot,
       });
 
-      const response = controller.joinRoom('1000', { displayName: 'Bob' });
+      const response = controller.joinRoom(1000, { displayName: 'Bob' });
 
       expect(mockRoomService.joinRoom).toHaveBeenCalledWith(1000, 'Bob');
       expect(response).toEqual({
@@ -107,9 +127,11 @@ describe('RoomsController', () => {
         throw new GameError(ErrorCode.ROOM_NOT_FOUND, 'Room not found');
       });
 
-      expect(() => controller.joinRoom('9999', { displayName: 'Bob' })).toThrow(HttpException);
+      expect(() => controller.joinRoom(9999, { displayName: 'Bob' })).toThrow(
+        HttpException,
+      );
       try {
-        controller.joinRoom('9999', { displayName: 'Bob' });
+        controller.joinRoom(9999, { displayName: 'Bob' });
       } catch (err: any) {
         expect(err.getStatus()).toBe(HttpStatus.NOT_FOUND);
       }
@@ -117,12 +139,17 @@ describe('RoomsController', () => {
 
     it('throws CONFLICT when room is full', () => {
       mockRoomService.joinRoom.mockImplementation(() => {
-        throw new GameError(ErrorCode.ROOM_FULL, 'Room is full (max 6 players)');
+        throw new GameError(
+          ErrorCode.ROOM_FULL,
+          'Room is full (max 6 players)',
+        );
       });
 
-      expect(() => controller.joinRoom('1000', { displayName: 'Bob' })).toThrow(HttpException);
+      expect(() => controller.joinRoom(1000, { displayName: 'Bob' })).toThrow(
+        HttpException,
+      );
       try {
-        controller.joinRoom('1000', { displayName: 'Bob' });
+        controller.joinRoom(1000, { displayName: 'Bob' });
       } catch (err: any) {
         expect(err.getStatus()).toBe(HttpStatus.CONFLICT);
       }
@@ -133,7 +160,7 @@ describe('RoomsController', () => {
     it('returns room snapshot when room exists', () => {
       mockRoomService.getRoomSnapshot.mockReturnValue(sampleSnapshot);
 
-      const snapshot = controller.getRoom('1000');
+      const snapshot = controller.getRoom(1000);
 
       expect(mockRoomService.getRoomSnapshot).toHaveBeenCalledWith(1000);
       expect(snapshot).toEqual(sampleSnapshot);
@@ -142,9 +169,9 @@ describe('RoomsController', () => {
     it('throws NOT_FOUND when room does not exist', () => {
       mockRoomService.getRoomSnapshot.mockReturnValue(null);
 
-      expect(() => controller.getRoom('9999')).toThrow(HttpException);
+      expect(() => controller.getRoom(9999)).toThrow(HttpException);
       try {
-        controller.getRoom('9999');
+        controller.getRoom(9999);
       } catch (err: any) {
         expect(err.getStatus()).toBe(HttpStatus.NOT_FOUND);
       }
@@ -154,14 +181,15 @@ describe('RoomsController', () => {
   describe('startGame', () => {
     it('starts game and returns snapshot', () => {
       mockGameService.startGame.mockReturnValue({
-        snapshot: { ...sampleSnapshot, status: 'IN_PROGRESS' },
+        snapshot: { ...sampleSnapshot, status: GameStatus.IN_PROGRESS },
         playerAssignments: [],
+        autoPlayedCard: undefined,
       });
 
-      const response = controller.startGame('1000', { playerId: 'host-1' });
+      const response = controller.startGame(1000, { playerId: 'host-1' });
 
       expect(mockGameService.startGame).toHaveBeenCalledWith(1000, 'host-1');
-      expect(response.snapshot.status).toBe('IN_PROGRESS');
+      expect(response.snapshot.status).toBe(GameStatus.IN_PROGRESS);
     });
 
     it('throws FORBIDDEN when requester is not host', () => {
@@ -170,7 +198,7 @@ describe('RoomsController', () => {
       });
 
       try {
-        controller.startGame('1000', { playerId: 'not-host' });
+        controller.startGame(1000, { playerId: 'not-host' });
       } catch (err: any) {
         expect(err.getStatus()).toBe(HttpStatus.FORBIDDEN);
       }
@@ -178,11 +206,14 @@ describe('RoomsController', () => {
 
     it('throws BAD_REQUEST when not enough players', () => {
       mockGameService.startGame.mockImplementation(() => {
-        throw new GameError(ErrorCode.NOT_ENOUGH_PLAYERS, 'At least 2 players required');
+        throw new GameError(
+          ErrorCode.NOT_ENOUGH_PLAYERS,
+          'At least 2 players required',
+        );
       });
 
       try {
-        controller.startGame('1000', { playerId: 'host-1' });
+        controller.startGame(1000, { playerId: 'host-1' });
       } catch (err: any) {
         expect(err.getStatus()).toBe(HttpStatus.BAD_REQUEST);
       }
@@ -193,9 +224,12 @@ describe('RoomsController', () => {
     it('removes player from room', () => {
       mockRoomService.removePlayer.mockReturnValue({ isRoomEmpty: false });
 
-      const response = controller.leaveRoom('1000', { playerId: 'player-1' });
+      const response = controller.leaveRoom(1000, { playerId: 'player-1' });
 
-      expect(mockRoomService.removePlayer).toHaveBeenCalledWith(1000, 'player-1');
+      expect(mockRoomService.removePlayer).toHaveBeenCalledWith(
+        1000,
+        'player-1',
+      );
       expect(response).toEqual({ success: true });
     });
   });

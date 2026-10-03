@@ -1,24 +1,7 @@
 import { Injectable, OnModuleDestroy, Logger } from '@nestjs/common';
-import type { Card, GameStatus, RoomSnapshot, PlayerPublic } from '@shared/types';
-
-export interface PlayerInternal {
-  playerId: string;
-  displayName: string;
-  socketId: string;
-  hand: Card[];
-  isConnected: boolean;
-  lastSeen: number;
-}
-
-export interface GameRoom {
-  roomCode: number;
-  status: GameStatus;
-  players: Map<string, PlayerInternal>;
-  hostPlayerId: string;
-  deck: Card[];
-  createdAt: number;
-  lastActivityAt: number;
-}
+import type { RoomSnapshot } from '@shared/types';
+import { Game } from './domain/game.js';
+import { Player } from './domain/player.js';
 
 const ROOM_TTL_MS = 2 * 60 * 60 * 1000;
 const CLEANUP_INTERVAL_MS = 5 * 60 * 1000;
@@ -26,30 +9,27 @@ const CLEANUP_INTERVAL_MS = 5 * 60 * 1000;
 @Injectable()
 export class GameStoreService implements OnModuleDestroy {
   private readonly logger = new Logger(GameStoreService.name);
-  private readonly rooms = new Map<number, GameRoom>();
+  private readonly rooms = new Map<number, Game>();
   private readonly cleanupTimer: NodeJS.Timeout;
 
   constructor() {
-    this.cleanupTimer = setInterval(() => this.evictStaleRooms(), CLEANUP_INTERVAL_MS);
+    this.cleanupTimer = setInterval(
+      () => this.evictStaleRooms(),
+      CLEANUP_INTERVAL_MS,
+    );
     this.cleanupTimer.unref?.();
   }
 
-  createRoom(roomCode: number, hostPlayerId = ''): GameRoom {
-    const now = Date.now();
-    const room: GameRoom = {
+  createRoom(roomCode: number, hostPlayerId = ''): Game {
+    const game = new Game({
       roomCode,
-      status: 'WAITING',
-      players: new Map(),
       hostPlayerId,
-      deck: [],
-      createdAt: now,
-      lastActivityAt: now,
-    };
-    this.rooms.set(roomCode, room);
-    return room;
+    });
+    this.rooms.set(roomCode, game);
+    return game;
   }
 
-  getRoom(roomCode: number): GameRoom | undefined {
+  getRoom(roomCode: number): Game | undefined {
     return this.rooms.get(roomCode);
   }
 
@@ -58,35 +38,23 @@ export class GameStoreService implements OnModuleDestroy {
   }
 
   removePlayer(roomCode: number, playerId: string): boolean {
-    const room = this.rooms.get(roomCode);
-    if (!room) {
-      return true;
-    }
-
-    room.players.delete(playerId);
-    const isRoomEmpty = room.players.size === 0;
-
+    const game = this.rooms.get(roomCode);
+    if (!game) return true;
+    const { isRoomEmpty } = game.removePlayer(playerId);
     if (isRoomEmpty) {
       this.deleteRoom(roomCode);
       return true;
     }
-
-    const wasHost = room.hostPlayerId === playerId;
-    if (wasHost) {
-      const nextPlayer = room.players.values().next().value;
-      if (nextPlayer) {
-        room.hostPlayerId = nextPlayer.playerId;
-      }
-    }
-
     return false;
   }
 
-  findPlayerBySocketId(socketId: string): { room: GameRoom; player: PlayerInternal } | undefined {
-    for (const room of this.rooms.values()) {
-      for (const player of room.players.values()) {
+  findPlayerBySocketId(
+    socketId: string,
+  ): { room: Game; player: Player } | undefined {
+    for (const game of this.rooms.values()) {
+      for (const player of game.getPlayers()) {
         if (player.socketId === socketId) {
-          return { room, player };
+          return { room: game, player };
         }
       }
     }
@@ -94,9 +62,9 @@ export class GameStoreService implements OnModuleDestroy {
   }
 
   updateActivity(roomCode: number): void {
-    const room = this.rooms.get(roomCode);
-    if (room) {
-      room.lastActivityAt = Date.now();
+    const game = this.rooms.get(roomCode);
+    if (game) {
+      game.lastActivityAt = Date.now();
     }
   }
 
@@ -105,26 +73,14 @@ export class GameStoreService implements OnModuleDestroy {
     this.logger.log(`Room ${roomCode} deleted`);
   }
 
-  toRoomSnapshot(room: GameRoom): RoomSnapshot {
-    const players: PlayerPublic[] = Array.from(room.players.values()).map((p) => ({
-      playerId: p.playerId,
-      displayName: p.displayName,
-      cardCount: p.hand.length,
-      isConnected: p.isConnected,
-    }));
-
-    return {
-      roomCode: room.roomCode,
-      status: room.status,
-      hostPlayerId: room.hostPlayerId,
-      players,
-    };
+  toRoomSnapshot(game: Game): RoomSnapshot {
+    return game.toSnapshot();
   }
 
   private evictStaleRooms(): void {
     const now = Date.now();
-    for (const [code, room] of this.rooms.entries()) {
-      if (now - room.lastActivityAt > ROOM_TTL_MS) {
+    for (const [code, game] of this.rooms) {
+      if (now - game.lastActivityAt > ROOM_TTL_MS) {
         this.rooms.delete(code);
         this.logger.log(`Evicted inactive room ${code}`);
       }

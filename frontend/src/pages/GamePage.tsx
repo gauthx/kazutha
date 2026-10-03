@@ -13,13 +13,15 @@ export function GamePage() {
   const navigate = useNavigate();
   const location = useLocation();
   const initialSnapshot = location.state?.initialSnapshot;
+  const roomCode = code ? parseInt(code, 10) : undefined;
   const { roomSnapshot, setRoomSnapshot, isHost, localPlayerId, error: roomError } = useRoom(
-    code,
+    roomCode,
     initialSnapshot,
   );
-  const { hand } = useHand();
+  const { hand, playCard } = useHand();
   const [error, setError] = useState<string | null>(null);
   const [isConnected, setIsConnected] = useState(socket.connected);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
     const handleConnect = () => setIsConnected(true);
@@ -38,6 +40,15 @@ export function GamePage() {
       socket.off('error', handleError);
     };
   }, []);
+
+  const handlePlayCard = async (card: import('@shared/types').Card) => {
+    setIsSubmitting(true);
+    const ack = await playCard(card);
+    setIsSubmitting(false);
+    if (!ack.ok && ack.message) {
+      setError(ack.message);
+    }
+  };
 
   const displayedError = error || roomError;
 
@@ -84,6 +95,8 @@ export function GamePage() {
           roomSnapshot={roomSnapshot}
           localHand={hand}
           localPlayerId={localPlayerId || ''}
+          onPlayCard={handlePlayCard}
+          isSubmitting={isSubmitting}
         />
       )}
     </div>
