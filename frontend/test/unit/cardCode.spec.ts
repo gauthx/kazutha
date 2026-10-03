@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { toCardCode } from '../../src/utils/cardCode';
-import type { Card, Suit, Rank } from '@shared/types';
+import type { Suit, Rank } from '@shared/types';
 
 describe('toCardCode', () => {
   it('maps Ace of Spades to As', () => {

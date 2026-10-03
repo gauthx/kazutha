@@ -1,0 +1,27 @@
+#!/bin/sh
+set -e
+
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+cd "$REPO_ROOT"
+
+echo "\n[1/6] Typechecking backend (tsc --noEmit)..."
+(cd backend && npx tsc --noEmit)
+
+echo "\n[2/6] Running backend unit tests (vitest)..."
+(cd backend && npx vitest run)
+
+echo "\n[3/6] Building backend (nest build)..."
+(cd backend && npx nest build)
+
+echo "\n[4/6] Typechecking frontend (tsc -b)..."
+(cd frontend && npx tsc -b)
+
+echo "\n[5/6] Running frontend unit tests (vitest)..."
+(cd frontend && npx vitest run)
+
+echo "\n[6/6] Building frontend (vite build)..."
+(cd frontend && npx vite build)
+
+echo "\n========================================="
+echo "  ✓ All pre-commit checks passed!        "
+echo "=========================================\n"

@@ -1,8 +1,16 @@
 import type { Card, GameStatus, RoomSnapshot, PlayerPublic } from '@shared/types';
 import { GameStatus as GameStatusConst, Suit, Rank, ErrorCode } from '../constants.js';
-import { GameError, type PlayerHandAssignment } from '../game.service.js';
+import { GameError } from '../errors.js';
 import { Player } from './player.js';
 import { Round, type PlayedCard } from './round.js';
+
+export type { Card };
+
+export interface PlayerHandAssignment {
+  playerId: string;
+  socketId: string;
+  hand: Card[];
+}
 
 export interface PlayCardResult {
   snapshot: RoomSnapshot;

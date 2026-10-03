@@ -2,8 +2,8 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { Game } from '../../../src/game/domain/game.js';
 import { Player } from '../../../src/game/domain/player.js';
 import { Suit, Rank, GameStatus, ErrorCode } from '../../../src/game/constants.js';
-import { GameError } from '../../../src/game/game.service.js';
-import type { Card } from '@shared/types';
+import { GameError } from '../../../src/game/errors.js';
+import type { Card } from '../../../src/game/domain/game.js';
 
 describe('Game Aggregate Root', () => {
   let game: Game;

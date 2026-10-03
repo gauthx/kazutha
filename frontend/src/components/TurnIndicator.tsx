@@ -1,4 +1,3 @@
-import React from 'react';
 import type { RoundSnapshot, PlayerPublic } from '@shared/types';
 
 interface TurnIndicatorProps {

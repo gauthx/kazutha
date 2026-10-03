@@ -1,5 +1,5 @@
 import type { Card, Suit } from '@shared/types';
-import { GameError } from '../game.service.js';
+import { GameError } from '../errors.js';
 import { ErrorCode } from '../constants.js';
 
 export class Player {

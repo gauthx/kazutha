@@ -3,23 +3,11 @@ import { GameStoreService } from './game-store.service.js';
 import { DeckService } from './deck.service.js';
 import type { Card } from '@shared/types';
 import { ErrorCode } from './constants.js';
-import type { PlayCardResult } from './domain/game.js';
+import { GameError } from './errors.js';
+import type { PlayCardResult, PlayerHandAssignment } from './domain/game.js';
 
-export class GameError extends Error {
-  constructor(
-    public readonly code: string,
-    message: string,
-  ) {
-    super(message);
-    this.name = 'GameError';
-  }
-}
-
-export interface PlayerHandAssignment {
-  playerId: string;
-  socketId: string;
-  hand: Card[];
-}
+export { GameError };
+export type { PlayerHandAssignment };
 
 @Injectable()
 export class GameService {

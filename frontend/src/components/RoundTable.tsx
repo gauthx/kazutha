@@ -1,4 +1,3 @@
-import React from 'react';
 import type { RoundSnapshot, PlayerPublic, Suit } from '@shared/types';
 import CardLib from '@heruka_urgyen/react-playing-cards';
 import { toCardCode } from '../utils/cardCode';
