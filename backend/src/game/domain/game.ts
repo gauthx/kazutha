@@ -129,34 +129,23 @@ export class Game {
     }
 
     this.status = GameStatusConst.IN_PROGRESS;
-    const playerAssignments: PlayerHandAssignment[] = [];
     const playerList = Array.from(this.players.values());
 
-    let handIndex = 0;
-    for (const player of playerList) {
-      const hand = hands[handIndex] || [];
-      player.setHand(hand);
-      playerAssignments.push({
+    const playerAssignments: PlayerHandAssignment[] = playerList.map((player, i) => {
+      player.setHand(hands[i] || []);
+      return {
         playerId: player.playerId,
         socketId: player.socketId,
         hand: [...player.getHand()],
-      });
-      handIndex++;
-    }
+      };
+    });
 
-    // Locate Ace of Spades
-    let acePlayerId = '';
     const aceCard: Card = { suit: Suit.SPADES, rank: Rank.A };
-    for (const player of playerList) {
-      if (player.hasCard(aceCard)) {
-        acePlayerId = player.playerId;
-        break;
-      }
-    }
-
-    if (!acePlayerId) {
+    const aceOwner = playerList.find((player) => player.hasCard(aceCard));
+    if (!aceOwner) {
       throw new Error('Ace of Spades not found in any player hand');
     }
+    const acePlayerId = aceOwner.playerId;
 
     const acePlayer = this.players.get(acePlayerId)!;
     acePlayer.removeCard(aceCard);

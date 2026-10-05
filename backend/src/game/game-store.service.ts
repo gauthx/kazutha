@@ -52,11 +52,8 @@ export class GameStoreService implements OnModuleDestroy {
     socketId: string,
   ): { room: Game; player: Player } | undefined {
     for (const game of this.rooms.values()) {
-      for (const player of game.getPlayers()) {
-        if (player.socketId === socketId) {
-          return { room: game, player };
-        }
-      }
+      const player = game.getPlayers().find((p) => p.socketId === socketId);
+      if (player) return { room: game, player };
     }
     return undefined;
   }

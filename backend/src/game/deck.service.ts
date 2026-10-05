@@ -28,13 +28,7 @@ export const RANKS: Rank[] = [
 @Injectable()
 export class DeckService {
   createDeck(): Card[] {
-    const deck: Card[] = [];
-    for (const suit of SUITS) {
-      for (const rank of RANKS) {
-        deck.push({ suit, rank });
-      }
-    }
-    return deck;
+    return SUITS.flatMap((suit) => RANKS.map((rank) => ({ suit, rank })));
   }
 
   shuffleDeck<T>(array: T[]): T[] {
@@ -50,10 +44,12 @@ export class DeckService {
     if (numPlayers < 1) {
       throw new Error('numPlayers must be at least 1');
     }
-    const hands: Card[][] = Array.from({ length: numPlayers }, () => []);
-    for (let i = 0; i < deck.length; i++) {
-      hands[i % numPlayers].push(deck[i]);
-    }
-    return hands;
+    return deck.reduce<Card[][]>(
+      (hands, card, i) => {
+        hands[i % numPlayers].push(card);
+        return hands;
+      },
+      Array.from({ length: numPlayers }, () => []),
+    );
   }
 }

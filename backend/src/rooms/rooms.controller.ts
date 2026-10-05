@@ -118,14 +118,14 @@ export class RoomsController {
         autoPlayedCard: result.autoPlayedCard,
       });
 
-      for (const p of result.playerAssignments) {
-        if (p.socketId) {
+      result.playerAssignments
+        .filter((p) => p.socketId)
+        .forEach((p) => {
           this.gameGateway.server.to(p.socketId).emit('state-sync', {
             hand: p.hand,
             roomSnapshot: result.snapshot,
           });
-        }
-      }
+        });
 
       return { snapshot: result.snapshot };
     } catch (err) {

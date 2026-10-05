@@ -88,13 +88,9 @@ export class Round {
       throw new Error('No cards of the led suit were played in this round');
     }
 
-    let highest = ledPlays[0];
-    for (let i = 1; i < ledPlays.length; i++) {
-      if (compareRank(ledPlays[i].card.rank, highest.card.rank) > 0) {
-        highest = ledPlays[i];
-      }
-    }
-    return highest;
+    return ledPlays.reduce((highest, play) =>
+      compareRank(play.card.rank, highest.card.rank) > 0 ? play : highest,
+    );
   }
 
   toSnapshot(): RoundSnapshot {
