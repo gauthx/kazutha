@@ -12,9 +12,10 @@ const NATURAL_PEEK = 20;
 interface OpponentHandProps {
   player: PlayerPublic;
   position?: 'top' | 'left' | 'right';
+  isCurrentTurn?: boolean;
 }
 
-export function OpponentHand({ player, position = 'top' }: OpponentHandProps) {
+export function OpponentHand({ player, position = 'top', isCurrentTurn = false }: OpponentHandProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [containerWidth, setContainerWidth] = useState(400);
 
@@ -37,7 +38,11 @@ export function OpponentHand({ player, position = 'top' }: OpponentHandProps) {
 
   return (
     <div className={`flex flex-col items-center ${position === 'left' || position === 'right' ? 'w-48' : ''}`}>
-      <div className="flex items-center gap-2 mb-2 bg-slate-800/80 px-3 py-1 rounded-full border border-slate-700">
+      <div className={`flex items-center gap-2 mb-2 bg-slate-800/80 px-3 py-1 rounded-full border transition-all duration-300 ${
+        isCurrentTurn
+          ? 'border-indigo-500 shadow-[0_0_14px_rgba(99,102,241,0.65)]'
+          : 'border-slate-700'
+      }`}>
         <span
           className={`h-2 w-2 rounded-full ${
             player.isConnected ? 'bg-emerald-400' : 'bg-amber-400'

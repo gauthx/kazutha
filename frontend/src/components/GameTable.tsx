@@ -3,7 +3,6 @@ import type { RoundResult } from '../hooks/useRoom';
 import { PlayerHand } from './PlayerHand';
 import { OpponentHand } from './OpponentHand';
 import { RoundTable } from './RoundTable';
-import { TurnIndicator } from './TurnIndicator';
 import { RoundResultBanner } from './RoundResultBanner';
 
 interface GameTableProps {
@@ -29,6 +28,10 @@ export function GameTable({
     (p) => p.playerId !== localPlayerId,
   );
 
+  const currentTurnPlayerId = roomSnapshot.currentRound
+    ? roomSnapshot.currentRound.currentTurnPlayerId
+    : roomSnapshot.nextRoundStarterId ?? null;
+
   return (
     <div className="relative flex flex-col h-screen w-full bg-slate-950 overflow-hidden select-none">
       <header className="flex items-center justify-between px-6 py-3 bg-slate-900/80 border-b border-slate-800 z-10">
@@ -53,14 +56,6 @@ export function GameTable({
 
       <div className="flex-1 relative flex items-center justify-center p-4">
         <div className="absolute inset-8 rounded-3xl bg-emerald-900/20 border-4 border-emerald-800/40 shadow-inner flex flex-col items-center justify-center">
-          <div className="absolute top-6">
-            <TurnIndicator
-              currentRound={roomSnapshot.currentRound}
-              localPlayerId={localPlayerId}
-              players={roomSnapshot.players}
-              nextRoundStarterId={roomSnapshot.nextRoundStarterId}
-            />
-          </div>
           <RoundTable
             currentRound={roomSnapshot.currentRound}
             players={roomSnapshot.players}
@@ -74,6 +69,7 @@ export function GameTable({
               key={opponent.playerId}
               player={opponent}
               position="top"
+              isCurrentTurn={currentTurnPlayerId === opponent.playerId}
             />
           ))}
         </div>

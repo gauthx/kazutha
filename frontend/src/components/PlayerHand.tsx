@@ -48,16 +48,16 @@ export function PlayerHand({
   const ledSuit = currentRound?.ledSuit ?? null;
   const hasLedSuit = ledSuit ? hand.some((c) => c.suit === ledSuit) : false;
 
-  const isPlayable = (card: CardType) => {
-    if (!isMyTurn || isSubmitting) return false;
-    if (!ledSuit) return true;
-    if (hasLedSuit) return card.suit === ledSuit;
-    return true;
-  };
+  const isPlayable = (card: CardType) =>  isMyTurn && !isSubmitting && (!ledSuit || !hasLedSuit || card.suit === ledSuit);
+
 
   return (
     <div className="w-full flex flex-col items-center py-4">
-      <div className="mb-3 text-xs uppercase tracking-wider text-slate-400 font-semibold">
+      <div className={`mb-3 px-4 py-1 rounded-full text-xs uppercase tracking-wider font-semibold border transition-all duration-300 ${
+        isMyTurn
+          ? 'bg-indigo-600/20 border-indigo-500 text-indigo-300 shadow-[0_0_14px_rgba(99,102,241,0.65)]'
+          : 'bg-slate-800/50 border-slate-700 text-slate-400'
+      }`}>
         Your Hand ({hand.length} cards)
       </div>
       <div ref={containerRef} className="w-full flex justify-center">
@@ -70,7 +70,7 @@ export function PlayerHand({
             const playable = isPlayable(card);
             const classNames = playable
               ? 'hover:-translate-y-8 cursor-pointer'
-              : 'opacity-40 cursor-not-allowed';
+              : 'brightness-70 grayscale-50 cursor-not-allowed';
 
             return (
               <div
