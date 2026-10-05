@@ -113,6 +113,8 @@ export interface RoundEndedPayload {
   discardedCards: Card[];
   nextStarterPlayerId: string;
   roomSnapshot: RoomSnapshot;
+  isVett: boolean;
+  pileWinnerPlayerId: string | null;
 }
 
 export interface PlayCardAck {

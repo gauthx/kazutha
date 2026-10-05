@@ -3,6 +3,12 @@ import { socket, connectSocket } from '../socket';
 import { getRoom } from '../api';
 import type { RoomSnapshot, StateSyncPayload } from '@shared/types';
 
+export interface RoundResult {
+  isVett: boolean;
+  pileWinnerPlayerId: string | null;
+  nextStarterPlayerId: string;
+}
+
 export function useRoom(
   roomCodeInput?: number,
   initialSnapshot?: RoomSnapshot | null,
@@ -10,6 +16,7 @@ export function useRoom(
   const [roomSnapshot, setRoomSnapshot] = useState<RoomSnapshot | null>(
     initialSnapshot ?? null,
   );
+  const [roundResult, setRoundResult] = useState<RoundResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -75,14 +82,23 @@ export function useRoom(
 
     const handleRoundStarted = (payload: import('@shared/types').RoundStartedPayload) => {
       setRoomSnapshot(payload.roomSnapshot);
+      setRoundResult(null);
     };
 
     const handleRoundUpdate = (payload: import('@shared/types').RoundUpdatePayload) => {
       setRoomSnapshot(payload.roomSnapshot);
+      if (payload.roomSnapshot.currentRound) {
+        setRoundResult(null);
+      }
     };
 
     const handleRoundEnded = (payload: import('@shared/types').RoundEndedPayload) => {
       setRoomSnapshot(payload.roomSnapshot);
+      setRoundResult({
+        isVett: payload.isVett,
+        pileWinnerPlayerId: payload.pileWinnerPlayerId,
+        nextStarterPlayerId: payload.nextStarterPlayerId,
+      });
     };
 
     socket.on('room-update', handleRoomUpdate);
@@ -102,6 +118,10 @@ export function useRoom(
     };
   }, []);
 
+  const dismissRoundResult = useCallback(() => {
+    setRoundResult(null);
+  }, []);
+
   const isHost = Boolean(
     localPlayerId && roomSnapshot && roomSnapshot.hostPlayerId === localPlayerId,
   );
@@ -109,6 +129,8 @@ export function useRoom(
   return {
     roomSnapshot,
     setRoomSnapshot,
+    roundResult,
+    dismissRoundResult,
     isHost,
     localPlayerId,
     error,

@@ -7,6 +7,7 @@ const Card = (CardLib as any).default || CardLib;
 interface RoundTableProps {
   currentRound: RoundSnapshot | null;
   players: PlayerPublic[];
+  nextRoundStarterId?: string | null;
 }
 
 const SUIT_DISPLAY: Record<Suit, string> = {
@@ -16,11 +17,18 @@ const SUIT_DISPLAY: Record<Suit, string> = {
   CLUBS: '♣ Clubs',
 };
 
-export function RoundTable({ currentRound, players }: RoundTableProps) {
+export function RoundTable({ currentRound, players, nextRoundStarterId }: RoundTableProps) {
   if (!currentRound) {
+    const starter = nextRoundStarterId
+      ? players.find((p) => p.playerId === nextRoundStarterId)
+      : null;
+    const starterText = starter
+      ? `Waiting for ${starter.displayName} to start the next round...`
+      : 'Waiting for round to start...';
+
     return (
       <div className="flex h-64 w-full max-w-2xl items-center justify-center rounded-2xl bg-emerald-900/30 border border-emerald-800/50">
-        <p className="text-emerald-700/60 font-medium">Waiting for round to start...</p>
+        <p className="text-emerald-300/80 font-medium">{starterText}</p>
       </div>
     );
   }

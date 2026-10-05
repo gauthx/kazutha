@@ -14,10 +14,15 @@ export function GamePage() {
   const location = useLocation();
   const initialSnapshot = location.state?.initialSnapshot;
   const roomCode = code ? parseInt(code, 10) : undefined;
-  const { roomSnapshot, setRoomSnapshot, isHost, localPlayerId, error: roomError } = useRoom(
-    roomCode,
-    initialSnapshot,
-  );
+  const {
+    roomSnapshot,
+    setRoomSnapshot,
+    roundResult,
+    dismissRoundResult,
+    isHost,
+    localPlayerId,
+    error: roomError,
+  } = useRoom(roomCode, initialSnapshot);
   const { hand, playCard } = useHand();
   const [error, setError] = useState<string | null>(null);
   const [isConnected, setIsConnected] = useState(socket.connected);
@@ -97,6 +102,8 @@ export function GamePage() {
           localPlayerId={localPlayerId || ''}
           onPlayCard={handlePlayCard}
           isSubmitting={isSubmitting}
+          roundResult={roundResult}
+          onDismissRoundResult={dismissRoundResult}
         />
       )}
     </div>

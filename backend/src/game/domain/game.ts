@@ -18,6 +18,7 @@ export interface PlayCardResult {
   discardedCards?: Card[];
   nextStarterPlayerId?: string;
   isVett?: boolean;
+  pileWinnerPlayerId?: string;
 }
 
 export class Game {
@@ -237,19 +238,27 @@ export class Game {
     // VETT: Player lacks led suit and plays off-suit
     if (!hasLedSuit) {
       player.removeCard(card);
+      const highestPlay = this.currentRound.getHighestLedSuitPlay();
+      const pileWinnerId = highestPlay.playerId;
+      const pileWinner = this.players.get(pileWinnerId);
+      if (!pileWinner) {
+        throw new GameError(ErrorCode.INTERNAL_ERROR, 'Pile winner not found in room');
+      }
+
       const playedSoFar = this.currentRound.getPlayedCards().map((pc) => pc.card);
-      // Collect all played cards from this round + the vett card
-      player.addCards([...playedSoFar, card]);
+      pileWinner.addCards([...playedSoFar, card]);
 
       this.currentRound = null;
-      this.nextRoundStarterId = playerId;
+      this.nextRoundStarterId = pileWinnerId;
+      this.checkPlayerFinished(player);
 
       return {
         snapshot: this.toSnapshot(),
         roundEnded: true,
         discardedCards: [],
-        nextStarterPlayerId: playerId,
+        nextStarterPlayerId: pileWinnerId,
         isVett: true,
+        pileWinnerPlayerId: pileWinnerId,
       };
     }
 

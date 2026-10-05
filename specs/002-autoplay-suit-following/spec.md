@@ -81,12 +81,14 @@ When every active player has played a card of the led suit (no vett occurs), the
 - **FR-010**: The system MUST skip disconnected or inactive players' turns during a round, progressing to the next connected active player.
 - **FR-011**: The system MUST enforce that only the current turn holder can play a card; plays from any other player must be rejected.
 
-### Key Entities
+### Key Entities (Domain Classes)
 
-- **Round**: One cycle of play from the first card played (led card) to round resolution. Tracks the led suit, ordered list of played cards, and the current turn holder.
-- **PlayedCard**: A single card played in the current round, associated with the player who played it and its position in play order.
-- **TurnOrder**: The clockwise sequence of active players, starting from the current round's starter and skipping spectators/disconnected players.
-- **RoundResult**: The outcome of a completed round — which cards were discarded, who leads next. Vett-triggered results are out of scope for this slice.
+The game engine is built around stateful domain classes — not pure functions or data records. Each class owns its own state and exposes methods that mutate it.
+
+- **`Game`**: Top-level game room class. Owns the player roster, current round, finish order, and game status. Exposes `start()` and `playCard()` as the two primary mutation entry points. Produces `RoomSnapshot` for broadcast via `toSnapshot()`.
+- **`Round`**: Tracks a single round's state: led suit, turn order, played cards, and the current turn index. Exposes `addPlayedCard()`, `advanceTurn()`, `isComplete()`, and `getHighestLedSuitPlay()`. A `Round` is created at the start of each round and set to `null` on the `Game` when the round ends.
+- **`Player`**: Holds a player's hand (mutable array of cards), connection state, and finish position. Exposes card mutation methods (`addCard`, `removeCard`, `setHand`) and predicates (`hasCard`, `hasSuit`, `isSpectator`).
+- **`PlayedCard`**: A lightweight record type (not a class) — captures `playerId`, `card`, and `turnIndex` for a card played within a round.
 
 ## Success Criteria *(mandatory)*
 
@@ -103,6 +105,9 @@ When every active player has played a card of the led suit (no vett occurs), the
 - This slice deliberately excludes vett (a player playing off-suit when they lack the led suit) — that is Slice 3. If a player has no led-suit cards, all their cards appear playable but the outcome (vett resolution) is deferred.
 - Play order is clockwise as established in Slice 1 (room player order is treated as clockwise sequence).
 - The A♠ auto-play fires server-side on game start and is broadcast to all clients; the client that happens to hold A♠ does not need to initiate it.
+- Game state lives in in-memory stateful objects (`Game`, `Round`, `Player` class instances); there is no database or event-sourcing layer.
+- The `Game` class is the single source of truth — the `GameService` orchestrates I/O and delegates all game-logic mutations into `Game`, which coordinates with `Round` and `Player` internally.
+- `Round` is a short-lived object: one instance per round, created at round start and nulled out on the `Game` when the round ends.
 - Desktop browser only — mobile is out of scope.
 - Disconnected players are skipped after the existing 60-second rejoin window (established in Slice 1).
 - No animations or card-play sound effects are required for this slice — functional state transitions only.

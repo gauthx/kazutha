@@ -134,10 +134,22 @@ export class GameGateway
 
       if (result.roundEnded) {
         this.server.to(roomCode.toString()).emit('round-ended', {
-          discardedCards: result.discardedCards,
-          nextStarterPlayerId: result.nextStarterPlayerId,
+          discardedCards: result.discardedCards ?? [],
+          nextStarterPlayerId: result.nextStarterPlayerId ?? '',
           roomSnapshot: result.snapshot,
+          isVett: result.isVett ?? false,
+          pileWinnerPlayerId: result.pileWinnerPlayerId ?? null,
         });
+
+        if (result.isVett && result.pileWinnerPlayerId) {
+          const winner = this.gameService.getPlayer(roomCode, result.pileWinnerPlayerId);
+          if (winner?.socketId) {
+            this.server.to(winner.socketId).emit('state-sync', {
+              hand: [...winner.getHand()],
+              roomSnapshot: result.snapshot,
+            });
+          }
+        }
       } else {
         this.server.to(roomCode.toString()).emit('round-update', {
           roomSnapshot: result.snapshot,

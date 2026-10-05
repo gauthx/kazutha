@@ -137,6 +137,7 @@ describe('Game Aggregate Root', () => {
       const play3 = game.playCard('p3', cardSpades2);
       expect(play3.roundEnded).toBe(true);
       expect(play3.isVett).toBe(false);
+      expect(play3.pileWinnerPlayerId).toBeUndefined();
       expect(play3.discardedCards).toHaveLength(3);
       // p1 had A♠ which is highest led card, so p1 starts next round
       expect(play3.nextStarterPlayerId).toBe('p1');
@@ -147,36 +148,91 @@ describe('Game Aggregate Root', () => {
       expect(p1.cardCount).toBe(1);
       expect(p2.cardCount).toBe(1);
       expect(p3.cardCount).toBe(1);
+
+      // p1 leads round 2 by playing K♥
+      const round2Start = game.playCard('p1', cardHeartsK);
+      expect(round2Start.roundEnded).toBe(false);
+      expect(p1.hasCard(cardHeartsK)).toBe(false);
+      const r2 = game.getCurrentRound();
+      expect(r2).not.toBeNull();
+      expect(r2?.roundNumber).toBe(2);
+      expect(r2?.ledSuit).toBe(Suit.HEARTS);
+      expect(r2?.currentTurnPlayerId).toBe('p2');
     });
   });
 
   describe('Vett Rule', () => {
-    it('triggers vett when player lacks led suit: immediately ends round, collects all cards, starts next round', () => {
-      // p1 holds A♠, p2 has NO spades (holds Hearts), p3 holds spades
+    it('triggers vett when player lacks led suit: immediately ends round, highest led-suit card player collects all cards and starts next round', () => {
       const hands: Card[][] = [
-        [cardSpadesA, cardSpadesK], // p1
-        [cardHeartsK, cardClubs10], // p2 (NO SPADES)
-        [cardSpadesQ, cardHeartsA], // p3
+        [cardSpadesA, cardSpadesK],
+        [cardHeartsK, cardClubs10],
+        [cardSpadesQ, cardHeartsA],
       ];
-      game.start(hands); // p1 auto-plays A♠. Next turn is p2
+      game.start(hands);
 
-      // p2 plays cardHeartsK (vett!)
       const result = game.playCard('p2', cardHeartsK);
 
       expect(result.roundEnded).toBe(true);
       expect(result.isVett).toBe(true);
       expect(result.discardedCards).toEqual([]);
-      expect(result.nextStarterPlayerId).toBe('p2');
+      expect(result.pileWinnerPlayerId).toBe('p1');
+      expect(result.nextStarterPlayerId).toBe('p1');
 
-      // Round immediately ended without p3 getting a turn in this round
       expect(game.getCurrentRound()).toBeNull();
-      expect(game.getNextRoundStarterId()).toBe('p2');
+      expect(game.getNextRoundStarterId()).toBe('p1');
 
-      // p2 collects all played cards (A♠ and K♥)
-      expect(p2.hasCard(cardSpadesA)).toBe(true);
-      expect(p2.hasCard(cardHeartsK)).toBe(true);
-      expect(p2.hasCard(cardClubs10)).toBe(true);
-      expect(p2.cardCount).toBe(3); // was 2, played 1, gained 2 (A♠ + K♥) = 3
+      expect(p1.hasCard(cardSpadesA)).toBe(true);
+      expect(p1.hasCard(cardHeartsK)).toBe(true);
+      expect(p1.hasCard(cardSpadesK)).toBe(true);
+      expect(p1.cardCount).toBe(3);
+
+      expect(p2.hasCard(cardHeartsK)).toBe(false);
+      expect(p2.cardCount).toBe(1);
+
+      expect(p3.cardCount).toBe(2);
+
+      // p1 leads round 2 with K♠
+      const round2Start = game.playCard('p1', cardSpadesK);
+      expect(round2Start.roundEnded).toBe(false);
+      expect(p1.hasCard(cardSpadesK)).toBe(false);
+      const r2 = game.getCurrentRound();
+      expect(r2).not.toBeNull();
+      expect(r2?.roundNumber).toBe(2);
+      expect(r2?.ledSuit).toBe(Suit.SPADES);
+      expect(r2?.currentTurnPlayerId).toBe('p2');
+    });
+
+    it('awards pile to highest led-suit card player when multiple led-suit cards played before vett', () => {
+      const cardSpades2 = { suit: Suit.SPADES, rank: Rank.TWO };
+      const hands: Card[][] = [
+        [cardSpades2],
+        [cardSpadesA, cardHeartsK],
+        [cardSpadesK, cardClubs10],
+        [cardHeartsA, cardClubs10],
+      ];
+      const game4 = new Game({ roomCode: 1004 });
+      const pl1 = new Player({ playerId: 'pl1', displayName: 'P1' });
+      const pl2 = new Player({ playerId: 'pl2', displayName: 'P2' });
+      const pl3 = new Player({ playerId: 'pl3', displayName: 'P3' });
+      const pl4 = new Player({ playerId: 'pl4', displayName: 'P4' });
+      game4.addPlayer(pl1);
+      game4.addPlayer(pl2);
+      game4.addPlayer(pl3);
+      game4.addPlayer(pl4);
+
+      game4.start(hands);
+      const play3 = game4.playCard('pl3', cardSpadesK);
+      expect(play3.roundEnded).toBe(false);
+
+      const play4 = game4.playCard('pl4', cardHeartsA);
+      expect(play4.roundEnded).toBe(true);
+      expect(play4.isVett).toBe(true);
+      expect(play4.pileWinnerPlayerId).toBe('pl2');
+      expect(play4.nextStarterPlayerId).toBe('pl2');
+
+      expect(pl2.cardCount).toBe(4);
+      expect(pl4.cardCount).toBe(1);
+      expect(pl1.cardCount).toBe(1);
     });
   });
 
@@ -197,7 +253,7 @@ describe('Game Aggregate Root', () => {
 
       // Player A hand is now 0 cards immediately after auto-play
       // Player B plays 2♠
-      const result = twoPlayerGame.playCard('B', cardSpades2);
+      twoPlayerGame.playCard('B', cardSpades2);
 
       // Round resolved. Player A finished 1st!
       expect(playerA.isSpectator()).toBe(true);

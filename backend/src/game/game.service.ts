@@ -90,4 +90,10 @@ export class GameService {
 
     return game.playCard(playerId, card);
   }
+
+  getPlayer(roomCode: number, playerId: string) {
+    const game = this.store.getRoom(roomCode);
+    if (!game) return null;
+    return game.getPlayer(playerId) ?? null;
+  }
 }

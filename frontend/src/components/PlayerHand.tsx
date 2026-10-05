@@ -12,12 +12,20 @@ const CARD_HEIGHT = 120;
 interface PlayerHandProps {
   hand: CardType[];
   currentRound: RoundSnapshot | null;
+  nextRoundStarterId?: string | null;
   localPlayerId: string;
   onPlayCard?: (card: CardType) => void;
   isSubmitting?: boolean;
 }
 
-export function PlayerHand({ hand, currentRound, localPlayerId, onPlayCard, isSubmitting }: PlayerHandProps) {
+export function PlayerHand({
+  hand,
+  currentRound,
+  nextRoundStarterId,
+  localPlayerId,
+  onPlayCard,
+  isSubmitting,
+}: PlayerHandProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [containerWidth, setContainerWidth] = useState(1280);
 
@@ -34,7 +42,9 @@ export function PlayerHand({ hand, currentRound, localPlayerId, onPlayCard, isSu
   const peek = computePeek(hand.length, containerWidth, CARD_WIDTH);
   const fanWidth = hand.length === 0 ? 0 : CARD_WIDTH + (hand.length - 1) * peek;
 
-  const isMyTurn = currentRound?.currentTurnPlayerId === localPlayerId;
+  const isMyTurn = currentRound
+    ? currentRound.currentTurnPlayerId === localPlayerId
+    : nextRoundStarterId === localPlayerId;
   const ledSuit = currentRound?.ledSuit ?? null;
   const hasLedSuit = ledSuit ? hand.some((c) => c.suit === ledSuit) : false;
 

@@ -1,8 +1,10 @@
 import type { RoomSnapshot, Card } from '@shared/types';
+import type { RoundResult } from '../hooks/useRoom';
 import { PlayerHand } from './PlayerHand';
 import { OpponentHand } from './OpponentHand';
 import { RoundTable } from './RoundTable';
 import { TurnIndicator } from './TurnIndicator';
+import { RoundResultBanner } from './RoundResultBanner';
 
 interface GameTableProps {
   roomSnapshot: RoomSnapshot;
@@ -10,6 +12,8 @@ interface GameTableProps {
   localPlayerId: string;
   onPlayCard: (card: Card) => void;
   isSubmitting: boolean;
+  roundResult?: RoundResult | null;
+  onDismissRoundResult?: () => void;
 }
 
 export function GameTable({
@@ -18,6 +22,8 @@ export function GameTable({
   localPlayerId,
   onPlayCard,
   isSubmitting,
+  roundResult,
+  onDismissRoundResult,
 }: GameTableProps) {
   const opponents = roomSnapshot.players.filter(
     (p) => p.playerId !== localPlayerId,
@@ -39,6 +45,12 @@ export function GameTable({
         </div>
       </header>
 
+      <RoundResultBanner
+        roundResult={roundResult ?? null}
+        players={roomSnapshot.players}
+        onDismiss={onDismissRoundResult ?? (() => {})}
+      />
+
       <div className="flex-1 relative flex items-center justify-center p-4">
         <div className="absolute inset-8 rounded-3xl bg-emerald-900/20 border-4 border-emerald-800/40 shadow-inner flex flex-col items-center justify-center">
           <div className="absolute top-6">
@@ -46,9 +58,14 @@ export function GameTable({
               currentRound={roomSnapshot.currentRound}
               localPlayerId={localPlayerId}
               players={roomSnapshot.players}
+              nextRoundStarterId={roomSnapshot.nextRoundStarterId}
             />
           </div>
-          <RoundTable currentRound={roomSnapshot.currentRound} players={roomSnapshot.players} />
+          <RoundTable
+            currentRound={roomSnapshot.currentRound}
+            players={roomSnapshot.players}
+            nextRoundStarterId={roomSnapshot.nextRoundStarterId}
+          />
         </div>
 
         <div className="absolute top-4 inset-x-0 flex justify-center gap-6 px-4 z-10 pointer-events-none">
@@ -66,6 +83,7 @@ export function GameTable({
         <PlayerHand
           hand={localHand}
           currentRound={roomSnapshot.currentRound}
+          nextRoundStarterId={roomSnapshot.nextRoundStarterId}
           localPlayerId={localPlayerId}
           onPlayCard={onPlayCard}
           isSubmitting={isSubmitting}
