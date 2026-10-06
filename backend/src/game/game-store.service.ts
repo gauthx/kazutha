@@ -1,24 +1,31 @@
-import { Injectable, OnModuleDestroy, Logger } from '@nestjs/common';
+import { Injectable, OnModuleInit, OnModuleDestroy, Logger } from '@nestjs/common';
 import type { RoomSnapshot } from '@shared/types';
 import { Game } from './domain/game.js';
 import { Player } from './domain/player.js';
+import { FeatureFlags } from '../config/feature-flags.js';
 
 const ROOM_TTL_MS = 2 * 60 * 60 * 1000;
 const CLEANUP_INTERVAL_MS = 5 * 60 * 1000;
 
 @Injectable()
-export class GameStoreService implements OnModuleDestroy {
+export class GameStoreService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(GameStoreService.name);
   private readonly rooms = new Map<number, Game>();
-  private readonly cleanupTimer: NodeJS.Timeout;
+  private cleanupTimer?: NodeJS.Timeout;
 
-  constructor() {
+  onModuleInit(): void {
+    if (!FeatureFlags.evictStaleRooms) {
+      this.logger.warn(
+        '[FeatureFlags] evictStaleRooms is DISABLED — rooms will not be evicted (dev mode)',
+      );
+      return;
+    }
     this.cleanupTimer = setInterval(
       () => this.evictStaleRooms(),
       CLEANUP_INTERVAL_MS,
     );
     this.cleanupTimer.unref?.();
-  }
+  } 
 
   createRoom(roomCode: number, hostPlayerId = ''): Game {
     const game = new Game({
@@ -85,7 +92,7 @@ export class GameStoreService implements OnModuleDestroy {
   }
 
   onModuleDestroy(): void {
-    clearInterval(this.cleanupTimer);
+    if (this.cleanupTimer) clearInterval(this.cleanupTimer);
     this.rooms.clear();
   }
 }
