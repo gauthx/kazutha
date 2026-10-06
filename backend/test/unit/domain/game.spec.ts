@@ -238,30 +238,218 @@ describe('Game Aggregate Root', () => {
 
   describe('Finishing Players & Kazhutha Detection', () => {
     it('marks player as spectator when hand is empty and skips them in turn calculation', () => {
-      // 2 player game
       const twoPlayerGame = new Game({ roomCode: 2000 });
       const playerA = new Player({ playerId: 'A', displayName: 'A' });
       const playerB = new Player({ playerId: 'B', displayName: 'B' });
       twoPlayerGame.addPlayer(playerA);
       twoPlayerGame.addPlayer(playerB);
 
-      // Player A has only A♠. Player B has 2♠, 10♣
       twoPlayerGame.start([
         [cardSpadesA],
         [cardSpades2, cardClubs10],
       ]);
 
-      // Player A hand is now 0 cards immediately after auto-play
-      // Player B plays 2♠
       twoPlayerGame.playCard('B', cardSpades2);
 
-      // Round resolved. Player A finished 1st!
       expect(playerA.isSpectator()).toBe(true);
       expect(playerA.getFinishPosition()).toBe(1);
-
-      // Only Player B remains active -> Player B is Kazhutha, game finishes!
       expect(twoPlayerGame.status).toBe(GameStatus.FINISHED);
       expect(twoPlayerGame.getFinishOrder()).toEqual(['A', 'B']);
+    });
+
+    it('evaluates elimination only after round resolution, allowing trick recipient in vett to retain cards', () => {
+      const hands: Card[][] = [
+        [cardSpadesA], // p1 has only A♠
+        [cardSpadesK, cardClubs10],
+        [cardHeartsA, cardClubs10], // p3 has no spades, will vett
+      ];
+
+      game.start(hands);
+      expect(p1.cardCount).toBe(0);
+
+      // p2 plays K♠ (on-suit)
+      game.playCard('p2', cardSpadesK);
+      // p3 plays A♥ (vett)
+      const vettResult = game.playCard('p3', cardHeartsA);
+
+      expect(vettResult.roundEnded).toBe(true);
+      expect(vettResult.isVett).toBe(true);
+      expect(vettResult.pileWinnerPlayerId).toBe('p1');
+
+      // p1 took the pile (A♠, K♠, A♥) so p1 is NOT eliminated
+      expect(p1.cardCount).toBe(3);
+      expect(p1.isSpectator()).toBe(false);
+      expect(p1.getFinishPosition()).toBeNull();
+    });
+
+    it('skips spectators in subsequent turn order and rejects spectator plays', () => {
+      const hands: Card[][] = [
+        [cardSpadesA, cardHeartsK],
+        [cardSpadesK], // p2 has only K♠, will empty hand in round 1
+        [cardSpadesQ, cardHeartsA],
+      ];
+
+      game.start(hands);
+      // p2 plays K♠
+      game.playCard('p2', cardSpadesK);
+      // p3 plays Q♠
+      const round1End = game.playCard('p3', cardSpadesQ);
+
+      expect(round1End.roundEnded).toBe(true);
+      expect(p2.cardCount).toBe(0);
+      expect(p2.isSpectator()).toBe(true);
+      expect(p2.getFinishPosition()).toBe(1);
+
+      // Next starter is p1 (highest led-suit was A♠)
+      expect(round1End.nextStarterPlayerId).toBe('p1');
+
+      // Spectator p2 attempting to play throws NOT_YOUR_TURN
+      expect(() => game.playCard('p2', cardHeartsK)).toThrow(GameError);
+      try {
+        game.playCard('p2', cardHeartsK);
+      } catch (err: any) {
+        expect(err.code).toBe(ErrorCode.NOT_YOUR_TURN);
+      }
+
+      // p1 leads round 2 with K♥
+      const leadResult = game.playCard('p1', cardHeartsK);
+      expect(leadResult.roundEnded).toBe(false);
+
+      // Round 2 turn order must be [p1, p3], skipping spectator p2
+      const round2 = game.getCurrentRound();
+      expect(round2?.currentTurnPlayerId).toBe('p3');
+    });
+
+    it('eliminates a player who empties their hand by playing a vett card', () => {
+      const hands: Card[][] = [
+        [cardSpadesA, cardHeartsK],
+        [cardSpadesK, cardHeartsA],
+        [cardClubs10], // p3 has only 10♣ (vett card)
+      ];
+
+      game.start(hands);
+      game.playCard('p2', cardSpadesK);
+      const vettPlay = game.playCard('p3', cardClubs10);
+
+      expect(vettPlay.roundEnded).toBe(true);
+      expect(vettPlay.isVett).toBe(true);
+      expect(p3.cardCount).toBe(0);
+      expect(p3.isSpectator()).toBe(true);
+      expect(p3.getFinishPosition()).toBe(1);
+    });
+
+    it('declares the last remaining player as Kazhutha upon 2-player game resolution', () => {
+      const twoPlayerGame = new Game({ roomCode: 2001 });
+      const playerA = new Player({ playerId: 'A', displayName: 'A' });
+      const playerB = new Player({ playerId: 'B', displayName: 'B' });
+      twoPlayerGame.addPlayer(playerA);
+      twoPlayerGame.addPlayer(playerB);
+
+      twoPlayerGame.start([
+        [cardSpadesA],
+        [cardSpades2, cardClubs10],
+      ]);
+
+      twoPlayerGame.playCard('B', cardSpades2);
+
+      expect(twoPlayerGame.status).toBe(GameStatus.FINISHED);
+      expect(twoPlayerGame.getKazhuthaPlayerId()).toBe('B');
+      expect(twoPlayerGame.getFinishOrder()).toEqual(['A', 'B']);
+
+      const snapshot = twoPlayerGame.toSnapshot();
+      expect(snapshot.status).toBe(GameStatus.FINISHED);
+      expect(snapshot.kazhuthaPlayerId).toBe('B');
+      expect(snapshot.finishOrder).toEqual(['A', 'B']);
+      expect(snapshot.nextRoundStarterId).toBeNull();
+    });
+
+    it('declares Kazhutha immediately when vett round eliminates the second-to-last active player', () => {
+      const twoPlayerGame = new Game({ roomCode: 2002 });
+      const playerA = new Player({ playerId: 'A', displayName: 'A' });
+      const playerB = new Player({ playerId: 'B', displayName: 'B' });
+      twoPlayerGame.addPlayer(playerA);
+      twoPlayerGame.addPlayer(playerB);
+
+      twoPlayerGame.start([
+        [cardSpadesA],
+        [cardClubs10], // player B has no spades, only 1 club
+      ]);
+
+      const vettPlay = twoPlayerGame.playCard('B', cardClubs10);
+
+      expect(vettPlay.roundEnded).toBe(true);
+      expect(vettPlay.isVett).toBe(true);
+      expect(playerB.cardCount).toBe(0);
+      expect(playerB.isSpectator()).toBe(true);
+      expect(playerB.getFinishPosition()).toBe(1);
+
+      // Player A took the pile, so player A has 2 cards and is the lone survivor (Kazhutha)
+      expect(playerA.cardCount).toBe(2);
+      expect(twoPlayerGame.status).toBe(GameStatus.FINISHED);
+      expect(twoPlayerGame.getKazhuthaPlayerId()).toBe('A');
+      expect(twoPlayerGame.getFinishOrder()).toEqual(['B', 'A']);
+
+      const snapshot = twoPlayerGame.toSnapshot();
+      expect(snapshot.status).toBe(GameStatus.FINISHED);
+      expect(snapshot.kazhuthaPlayerId).toBe('A');
+    });
+  });
+
+  describe('Priority Trick Starter Selection (User Story 3)', () => {
+    it('selects second-highest led-suit card player as starter when trick winner empties hand', () => {
+      const hands: Card[][] = [
+        [cardSpadesA], // p1 has only A♠
+        [cardSpadesK, cardHeartsK], // p2 plays K♠ (2nd highest)
+        [cardSpadesQ, cardHeartsA], // p3 plays Q♠ (3rd highest)
+      ];
+
+      game.start(hands);
+      // p2 plays K♠
+      game.playCard('p2', cardSpadesK);
+      // p3 plays Q♠
+      const round1End = game.playCard('p3', cardSpadesQ);
+
+      expect(round1End.roundEnded).toBe(true);
+      expect(p1.cardCount).toBe(0);
+      expect(p1.isSpectator()).toBe(true);
+
+      // p1 was highest but finished; p2 played 2nd highest card and still has cards
+      expect(round1End.nextStarterPlayerId).toBe('p2');
+      expect(game.getNextRoundStarterId()).toBe('p2');
+    });
+
+    it('selects highest remaining card holder when multiple (N) players finish their hands', () => {
+      const cardSpades10: Card = { suit: Suit.SPADES, rank: Rank.TEN };
+      const cardSpades9: Card = { suit: Suit.SPADES, rank: Rank.NINE };
+
+      const game4 = new Game({ roomCode: 4001 });
+      const pl1 = new Player({ playerId: 'pl1', displayName: 'P1' });
+      const pl2 = new Player({ playerId: 'pl2', displayName: 'P2' });
+      const pl3 = new Player({ playerId: 'pl3', displayName: 'P3' });
+      const pl4 = new Player({ playerId: 'pl4', displayName: 'P4' });
+      game4.addPlayer(pl1);
+      game4.addPlayer(pl2);
+      game4.addPlayer(pl3);
+      game4.addPlayer(pl4);
+
+      game4.start([
+        [cardSpadesA], // pl1 plays A♠, empties hand
+        [cardSpadesK], // pl2 plays K♠, empties hand
+        [cardSpades10, cardHeartsK], // pl3 plays 10♠, has 1 card left
+        [cardSpades9, cardHeartsA], // pl4 plays 9♠, has 1 card left
+      ]);
+
+      game4.playCard('pl2', cardSpadesK);
+      game4.playCard('pl3', cardSpades10);
+      const res = game4.playCard('pl4', cardSpades9);
+
+      expect(res.roundEnded).toBe(true);
+      expect(pl1.isSpectator()).toBe(true);
+      expect(pl2.isSpectator()).toBe(true);
+
+      // Top 2 (A♠ and K♠) finished; among remaining players with cards (pl3 with 10♠ and pl4 with 9♠), pl3 played higher
+      expect(res.nextStarterPlayerId).toBe('pl3');
+      expect(game4.getNextRoundStarterId()).toBe('pl3');
     });
   });
 });

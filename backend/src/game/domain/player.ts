@@ -1,4 +1,4 @@
-import type { Card, Suit } from '@shared/types';
+import type { Card, Suit, PlayerPublic } from '@shared/types';
 import { GameError } from '../errors.js';
 import { ErrorCode } from '../constants.js';
 
@@ -79,5 +79,16 @@ export class Player {
 
   isSpectator(): boolean {
     return this.finishPosition !== null;
+  }
+
+  toPublic(): PlayerPublic {
+    return {
+      playerId: this.playerId,
+      displayName: this.displayName,
+      cardCount: this.cardCount,
+      isConnected: this.isConnected,
+      isSpectator: this.isSpectator(),
+      finishPosition: this.finishPosition,
+    };
   }
 }

@@ -78,4 +78,26 @@ describe('Player Domain Model', () => {
     expect(player.isSpectator()).toBe(true);
     expect(player.getFinishPosition()).toBe(1);
   });
+
+  it('serializes to public object including spectator state', () => {
+    const player = new Player({ playerId: 'p1', displayName: 'Alice' });
+    expect(player.toPublic()).toEqual({
+      playerId: 'p1',
+      displayName: 'Alice',
+      cardCount: 0,
+      isConnected: true,
+      isSpectator: false,
+      finishPosition: null,
+    });
+
+    player.markFinished(2);
+    expect(player.toPublic()).toEqual({
+      playerId: 'p1',
+      displayName: 'Alice',
+      cardCount: 0,
+      isConnected: true,
+      isSpectator: true,
+      finishPosition: 2,
+    });
+  });
 });

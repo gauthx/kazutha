@@ -51,28 +51,40 @@ export function OpponentHand({ player, position = 'top', isCurrentTurn = false }
         <span className="text-xs font-semibold text-slate-200">
           {player.displayName}
         </span>
-        <span className="text-xs text-indigo-400 font-mono">
-          ({player.cardCount})
-        </span>
+        {player.isSpectator ? (
+          <span className="text-xs bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded-full font-mono border border-emerald-500/30">
+            Rank #{player.finishPosition ?? 1}
+          </span>
+        ) : (
+          <span className="text-xs text-indigo-400 font-mono">
+            ({player.cardCount})
+          </span>
+        )}
       </div>
 
       <div ref={containerRef} className="py-1">
-        <div className="relative" style={{ width: fanWidth, height: CARD_HEIGHT }}>
-          {Array.from({ length: displayCount }).map((_, index) => (
-            <div
-              key={index}
-              className="absolute shadow-md"
-              style={{
-                left: index * peek,
-                zIndex: index,
-                width: CARD_WIDTH,
-                height: CARD_HEIGHT,
-              }}
-            >
-              <Card card="Ah" deckType="basic" height={`${CARD_HEIGHT}px`} back />
-            </div>
-          ))}
-        </div>
+        {player.isSpectator ? (
+          <div className="text-xs text-slate-500 italic flex items-center justify-center h-16">
+            Spectating
+          </div>
+        ) : (
+          <div className="relative" style={{ width: fanWidth, height: CARD_HEIGHT }}>
+            {Array.from({ length: displayCount }).map((_, index) => (
+              <div
+                key={index}
+                className="absolute shadow-md"
+                style={{
+                  left: index * peek,
+                  zIndex: index,
+                  width: CARD_WIDTH,
+                  height: CARD_HEIGHT,
+                }}
+              >
+                <Card card="Ah" deckType="basic" height={`${CARD_HEIGHT}px`} back />
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

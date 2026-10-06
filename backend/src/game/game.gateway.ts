@@ -141,6 +141,10 @@ export class GameGateway
           pileWinnerPlayerId: result.pileWinnerPlayerId ?? null,
         });
 
+        if (result.snapshot.status === 'FINISHED') {
+          this.server.to(roomCode.toString()).emit('room-update', result.snapshot);
+        }
+
         if (result.isVett && result.pileWinnerPlayerId) {
           const winner = this.gameService.getPlayer(roomCode, result.pileWinnerPlayerId);
           if (winner?.socketId) {

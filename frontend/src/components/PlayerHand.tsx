@@ -16,6 +16,8 @@ interface PlayerHandProps {
   localPlayerId: string;
   onPlayCard?: (card: CardType) => void;
   isSubmitting?: boolean;
+  isSpectator?: boolean;
+  finishPosition?: number | null;
 }
 
 export function PlayerHand({
@@ -25,6 +27,8 @@ export function PlayerHand({
   localPlayerId,
   onPlayCard,
   isSubmitting,
+  isSpectator = false,
+  finishPosition = null,
 }: PlayerHandProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [containerWidth, setContainerWidth] = useState(1280);
@@ -42,25 +46,35 @@ export function PlayerHand({
   const peek = computePeek(hand.length, containerWidth, CARD_WIDTH);
   const fanWidth = hand.length === 0 ? 0 : CARD_WIDTH + (hand.length - 1) * peek;
 
-  const isMyTurn = currentRound
+  const isMyTurn = !isSpectator && (currentRound
     ? currentRound.currentTurnPlayerId === localPlayerId
-    : nextRoundStarterId === localPlayerId;
+    : nextRoundStarterId === localPlayerId);
   const ledSuit = currentRound?.ledSuit ?? null;
   const hasLedSuit = ledSuit ? hand.some((c) => c.suit === ledSuit) : false;
 
-  const isPlayable = (card: CardType) =>  isMyTurn && !isSubmitting && (!ledSuit || !hasLedSuit || card.suit === ledSuit);
-
+  const isPlayable = (card: CardType) => !isSpectator && isMyTurn && !isSubmitting && (!ledSuit || !hasLedSuit || card.suit === ledSuit);
 
   return (
     <div className="w-full flex flex-col items-center py-4">
-      <div className={`mb-3 px-4 py-1 rounded-full text-xs uppercase tracking-wider font-semibold border transition-all duration-300 ${
-        isMyTurn
-          ? 'bg-indigo-600/20 border-indigo-500 text-indigo-300 shadow-[0_0_14px_rgba(99,102,241,0.65)]'
-          : 'bg-slate-800/50 border-slate-700 text-slate-400'
-      }`}>
-        Your Hand ({hand.length} cards)
-      </div>
+      {isSpectator ? (
+        <div className="mb-3 px-4 py-1.5 rounded-full text-xs uppercase tracking-wider font-semibold border bg-emerald-950/60 border-emerald-600 text-emerald-300 shadow-[0_0_14px_rgba(16,185,129,0.4)]">
+          You Finished (Rank #{finishPosition ?? 1}) — Spectating
+        </div>
+      ) : (
+        <div className={`mb-3 px-4 py-1 rounded-full text-xs uppercase tracking-wider font-semibold border transition-all duration-300 ${
+          isMyTurn
+            ? 'bg-indigo-600/20 border-indigo-500 text-indigo-300 shadow-[0_0_14px_rgba(99,102,241,0.65)]'
+            : 'bg-slate-800/50 border-slate-700 text-slate-400'
+        }`}>
+          Your Hand ({hand.length} cards)
+        </div>
+      )}
       <div ref={containerRef} className="w-full flex justify-center">
+        {isSpectator || hand.length === 0 ? (
+          <div className="text-xs text-slate-500 font-medium py-4">
+            No cards remaining. You are observing the game.
+          </div>
+        ) : (
         <div
           className="relative"
           style={{ width: fanWidth, height: CARD_HEIGHT }}
@@ -89,6 +103,7 @@ export function PlayerHand({
             );
           })}
         </div>
+        )}
       </div>
     </div>
   );

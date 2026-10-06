@@ -103,28 +103,13 @@ In this case:
 3. All cards played in that round are placed **face-down**.
 4. These cards are removed from the game and are no longer in any player's hand.
 5. Determine the **highest-value card played in the led suit**.
-6. The player who played that highest card becomes the **starter of the next round**.
+6. The player who played that highest card becomes the **starter of the next round**, provided they still have cards remaining.
 
-Example:
+### Important: Starter when players finish their hand
 
-```text
-Player A → 7♥
-Player B → K♥
-Player C → 3♥
-Player D → A♥
-
-Everyone followed ♥
-→ No vett
-→ Cards are placed face-down
-→ A♥ is the highest card
-→ Player D starts the next round
-```
-
-### Important
-
-The highest card **does not take the cards**.
-
-It only determines **who starts the next round**.
+* The highest card **does not take the cards**. It only determines **who starts the next round**.
+* If the player who played the highest card finishes their hand (0 cards left), they become a spectator and cannot lead. In this case, the player who played the **second-highest** card of the led suit in that round starts the next round.
+* If multiple (N) players in the round finish their hands, whichever player **still has cards remaining** and played the highest-ranked card in the led suit starts the next round.
 
 ---
 
@@ -193,9 +178,10 @@ Round ends
         ↓
 All played cards go face-down
         ↓
-Find highest card of led suit
+Find player with cards remaining who played highest card of led suit
+(if highest finished, second-highest starts; if N finished, highest among remaining players starts)
         ↓
-That card's player starts next round
+That player starts next round
 ```
 
 ---
@@ -207,7 +193,7 @@ That card's player starts next round
 * A `vett` player does **not** automatically take the cards.
 * When a `vett` occurs, find the **highest-ranked led-suit card** played before the vett — that card's player takes all cards in the round (including the vett card) and **starts the next round**.
 * If nobody performs a `vett`, all played cards are discarded face-down.
-* When there is no vett, the **highest card of the led suit determines the next round's starter**.
+* When there is no vett, the player who played the **highest card of the led suit among players who still have cards remaining** starts the next round. If the highest card player finishes their hand, the second-highest starts; if N players finish, the highest remaining card holder starts.
 * The highest card does **not** take the cards when there is no vett.
 * Players with zero cards are spectators and must be skipped.
 * The initial starter is the player holding **A♠**.

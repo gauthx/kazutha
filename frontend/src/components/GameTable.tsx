@@ -54,6 +54,48 @@ export function GameTable({
         onDismiss={onDismissRoundResult ?? (() => {})}
       />
 
+      {roomSnapshot.status === 'FINISHED' && (
+        <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-700 rounded-2xl p-6 max-w-md w-full shadow-2xl text-center space-y-4">
+            <div className="text-4xl">🫏</div>
+            <h2 className="text-2xl font-bold text-white tracking-wide">Game Over!</h2>
+            <div className="bg-rose-950/40 border border-rose-800/60 rounded-xl p-3">
+              <span className="text-xs uppercase tracking-wider text-rose-400 font-semibold block mb-1">
+                കഴുത (Kazhutha / Donkey)
+              </span>
+              <span className="text-lg font-bold text-rose-200">
+                {roomSnapshot.players.find((p) => p.playerId === roomSnapshot.kazhuthaPlayerId)?.displayName || 'Unknown'}
+              </span>
+            </div>
+            {roomSnapshot.finishOrder && roomSnapshot.finishOrder.length > 0 && (
+              <div className="text-left bg-slate-800/60 rounded-xl p-3 border border-slate-700 space-y-2">
+                <span className="text-xs uppercase tracking-wider text-slate-400 font-semibold block">
+                  Finishing Ranks
+                </span>
+                <div className="space-y-1">
+                  {roomSnapshot.finishOrder.map((pid, idx) => {
+                    const p = roomSnapshot.players.find((player) => player.playerId === pid);
+                    const isDonkey = pid === roomSnapshot.kazhuthaPlayerId;
+                    return (
+                      <div key={pid} className="flex justify-between items-center text-sm py-0.5">
+                        <span className="text-slate-300">
+                          {idx + 1}. {p?.displayName || pid} {pid === localPlayerId ? '(You)' : ''}
+                        </span>
+                        <span className={`text-xs font-mono font-semibold px-2 py-0.5 rounded ${
+                          isDonkey ? 'bg-rose-900/60 text-rose-300' : 'bg-emerald-900/60 text-emerald-300'
+                        }`}>
+                          {isDonkey ? 'Kazhutha' : `Rank #${idx + 1}`}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       <div className="flex-1 relative flex items-center justify-center p-4">
         <div className="absolute inset-8 rounded-3xl bg-emerald-900/20 border-4 border-emerald-800/40 shadow-inner flex flex-col items-center justify-center">
           <RoundTable
@@ -83,6 +125,8 @@ export function GameTable({
           localPlayerId={localPlayerId}
           onPlayCard={onPlayCard}
           isSubmitting={isSubmitting}
+          isSpectator={roomSnapshot.players.find((p) => p.playerId === localPlayerId)?.isSpectator}
+          finishPosition={roomSnapshot.players.find((p) => p.playerId === localPlayerId)?.finishPosition}
         />
       </footer>
     </div>

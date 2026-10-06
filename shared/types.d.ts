@@ -12,6 +12,8 @@ export interface PlayerPublic {
   displayName: string;
   cardCount: number;
   isConnected: boolean;
+  isSpectator?: boolean;
+  finishPosition?: number | null;
 }
 
 export interface PlayerPrivate extends PlayerPublic {
@@ -37,6 +39,8 @@ export interface RoomSnapshot {
   players: PlayerPublic[];
   currentRound: RoundSnapshot | null;
   nextRoundStarterId?: string | null;
+  kazhuthaPlayerId?: string | null;
+  finishOrder?: string[];
 }
 
 export interface JoinRoomPayload {
