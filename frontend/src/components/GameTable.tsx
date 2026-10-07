@@ -1,4 +1,5 @@
-import type { RoomSnapshot, Card } from '@shared/types';
+import { useRef } from 'react';
+import type { RoomSnapshot, Card, RoundSnapshot } from '@shared/types';
 import type { RoundResult } from '../hooks/useRoom';
 import { PlayerHand } from './PlayerHand';
 import { OpponentHand } from './OpponentHand';
@@ -27,6 +28,17 @@ export function GameTable({
   const opponents = roomSnapshot.players.filter(
     (p) => p.playerId !== localPlayerId,
   );
+
+  const lastCompletedRoundRef = useRef<RoundSnapshot | null>(null);
+  if (roundResult?.completedRound) {
+    lastCompletedRoundRef.current = roundResult.completedRound;
+  }
+
+  const isRoundPause = Boolean(roundResult && roomSnapshot.status !== 'FINISHED');
+  const completedRoundToDisplay =
+    roomSnapshot.status === 'FINISHED'
+      ? (roundResult?.completedRound ?? lastCompletedRoundRef.current)
+      : (roundResult?.completedRound ?? null);
 
   const currentTurnPlayerId = roomSnapshot.currentRound
     ? roomSnapshot.currentRound.currentTurnPlayerId
@@ -100,6 +112,7 @@ export function GameTable({
         <div className="absolute inset-8 rounded-3xl bg-emerald-900/20 border-4 border-emerald-800/40 shadow-inner flex flex-col items-center justify-center">
           <RoundTable
             currentRound={roomSnapshot.currentRound}
+            completedRound={completedRoundToDisplay}
             players={roomSnapshot.players}
             nextRoundStarterId={roomSnapshot.nextRoundStarterId}
           />
@@ -127,6 +140,7 @@ export function GameTable({
           isSubmitting={isSubmitting}
           isSpectator={roomSnapshot.players.find((p) => p.playerId === localPlayerId)?.isSpectator}
           finishPosition={roomSnapshot.players.find((p) => p.playerId === localPlayerId)?.finishPosition}
+          isRoundPause={isRoundPause}
         />
       </footer>
     </div>

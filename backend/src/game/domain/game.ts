@@ -1,4 +1,4 @@
-import type { Card, GameStatus, RoomSnapshot, PlayerPublic } from '@shared/types';
+import type { Card, GameStatus, RoomSnapshot, PlayerPublic, RoundSnapshot } from '@shared/types';
 import { GameStatus as GameStatusConst, Suit, Rank, ErrorCode } from '../constants.js';
 import { GameError } from '../errors.js';
 import { Player } from './player.js';
@@ -19,6 +19,7 @@ export interface PlayCardResult {
   nextStarterPlayerId?: string;
   isVett?: boolean;
   pileWinnerPlayerId?: string;
+  completedRound?: RoundSnapshot;
 }
 
 export class Game {
@@ -182,10 +183,24 @@ export class Game {
   }
 
   playCard(playerId: string, card: Card): PlayCardResult {
+    this.validateGameInProgress();
+
+    const player = this.getPlayablePlayer(playerId);
+
+    if (!this.currentRound) {
+      return this.startRound(player, card);
+    }
+
+    return this.playIntoRound(player, card);
+  }
+
+  private validateGameInProgress(): void {
     if (this.status !== GameStatusConst.IN_PROGRESS) {
       throw new GameError(ErrorCode.GAME_IN_PROGRESS, 'Game is not in progress');
     }
+  }
 
+  private getPlayablePlayer(playerId: string): Player {
     const player = this.players.get(playerId);
     if (!player) {
       throw new GameError(ErrorCode.ROOM_NOT_FOUND, 'Player not in room');
@@ -193,126 +208,164 @@ export class Game {
     if (player.isSpectator()) {
       throw new GameError(ErrorCode.NOT_YOUR_TURN, 'Player has already finished and is spectating');
     }
+    return player;
+  }
 
-    if (!this.currentRound) {
-      if (!this.nextRoundStarterId) {
-        throw new GameError(ErrorCode.INTERNAL_ERROR, 'No round in progress and no next round starter set');
-      }
-      if (this.nextRoundStarterId !== playerId) {
-        throw new GameError(ErrorCode.NOT_YOUR_TURN, 'It is not your turn');
-      }
-      if (!player.hasCard(card)) {
-        throw new GameError(ErrorCode.CARD_NOT_IN_HAND, 'Card not in hand');
-      }
-
-      this.roundCounter++;
-      const turnOrder = this.getActiveTurnOrder(playerId);
-      this.currentRound = new Round({
-        roundNumber: this.roundCounter,
-        starterPlayerId: playerId,
-        ledSuit: card.suit,
-        turnOrder,
-        initialPlay: { playerId, card },
-      });
-      this.nextRoundStarterId = null;
-
-      player.removeCard(card);
-
-      return {
-        snapshot: this.toSnapshot(),
-        roundEnded: false,
-      };
+  private validateRoundStarter(playerId: string): void {
+    if (!this.nextRoundStarterId) {
+      throw new GameError(ErrorCode.INTERNAL_ERROR, 'No round in progress and no next round starter set');
     }
-
-    if (this.currentRound.currentTurnPlayerId !== playerId) {
+    if (this.nextRoundStarterId !== playerId) {
       throw new GameError(ErrorCode.NOT_YOUR_TURN, 'It is not your turn');
     }
+  }
+
+  private validateTurn(round: Round, playerId: string): void {
+    if (round.currentTurnPlayerId !== playerId) {
+      throw new GameError(ErrorCode.NOT_YOUR_TURN, 'It is not your turn');
+    }
+  }
+
+  private validateCardInHand(player: Player, card: Card): void {
     if (!player.hasCard(card)) {
       throw new GameError(ErrorCode.CARD_NOT_IN_HAND, 'Card not in hand');
     }
+  }
 
-    const hasLedSuit = player.hasSuit(this.currentRound.ledSuit);
-
-    if (!hasLedSuit) {
-      player.removeCard(card);
-      const highestPlay = this.currentRound.getHighestLedSuitPlay();
-      const pileWinnerId = highestPlay.playerId;
-      const pileWinner = this.players.get(pileWinnerId);
-      if (!pileWinner) {
-        throw new GameError(ErrorCode.INTERNAL_ERROR, 'Pile winner not found in room');
-      }
-
-      const playedSoFar = this.currentRound.getPlayedCards().map((pc) => pc.card);
-      pileWinner.addCards([...playedSoFar, card]);
-
-      this.resolveRoundEliminations();
-      this.checkGameOver();
-
-      const nextStarterId = (this.status as GameStatus) === GameStatusConst.FINISHED ? '' : pileWinnerId;
-      this.currentRound = null;
-      this.nextRoundStarterId = nextStarterId || null;
-
-      return {
-        snapshot: this.toSnapshot(),
-        roundEnded: true,
-        discardedCards: [],
-        nextStarterPlayerId: nextStarterId,
-        isVett: true,
-        pileWinnerPlayerId: pileWinnerId,
-      };
-    }
-
-    if (card.suit !== this.currentRound.ledSuit) {
+  private validateLedSuit(round: Round, card: Card): void {
+    if (card.suit !== round.ledSuit) {
       throw new GameError(ErrorCode.MUST_FOLLOW_SUIT, 'Must follow the led suit');
     }
+  }
+
+  private startRound(player: Player, card: Card): PlayCardResult {
+    this.validateRoundStarter(player.playerId);
+    this.validateCardInHand(player, card);
+
+    this.roundCounter++;
+    const turnOrder = this.getActiveTurnOrder(player.playerId);
+    this.currentRound = new Round({
+      roundNumber: this.roundCounter,
+      starterPlayerId: player.playerId,
+      ledSuit: card.suit,
+      turnOrder,
+      initialPlay: { playerId: player.playerId, card },
+    });
+    this.nextRoundStarterId = null;
 
     player.removeCard(card);
-    this.currentRound.addPlayedCard(playerId, card);
 
-    if (this.currentRound.isComplete()) {
-      const highestPlay = this.currentRound.getHighestLedSuitPlay();
-      const discardedCards = this.currentRound.getPlayedCards().map((pc) => pc.card);
-
-      this.resolveRoundEliminations();
-      this.checkGameOver();
-
-      let nextStarter = '';
-      if ((this.status as GameStatus) !== GameStatusConst.FINISHED) {
-        const ledPlays = this.currentRound
-          .getPlayedCards()
-          .filter((pc) => pc.card.suit === this.currentRound!.ledSuit);
-        ledPlays.sort((a, b) => compareRank(b.card.rank, a.card.rank));
-
-        const nextStarterPlay = ledPlays.find((pc) => {
-          const p = this.players.get(pc.playerId);
-          return p && !p.isSpectator() && p.cardCount > 0;
-        });
-
-        nextStarter = nextStarterPlay?.playerId ?? '';
-        if (!nextStarter) {
-          const activeOrder = this.getActiveTurnOrder(highestPlay.playerId);
-          nextStarter = activeOrder[0] ?? '';
-        }
-      }
-
-      this.currentRound = null;
-      this.nextRoundStarterId = nextStarter || null;
-
-      return {
-        snapshot: this.toSnapshot(),
-        roundEnded: true,
-        discardedCards,
-        nextStarterPlayerId: nextStarter,
-        isVett: false,
-      };
-    }
-
-    this.currentRound.advanceTurn();
     return {
       snapshot: this.toSnapshot(),
       roundEnded: false,
     };
   }
+
+  private playIntoRound(player: Player, card: Card): PlayCardResult {
+    const round = this.currentRound!;
+
+    this.validateTurn(round, player.playerId);
+    this.validateCardInHand(player, card);
+
+    if (!player.hasSuit(round.ledSuit)) {
+      return this.playVett(player, card, round);
+    }
+
+    this.validateLedSuit(round, card);
+
+    player.removeCard(card);
+    round.addPlayedCard(player.playerId, card);
+
+    if (round.isComplete()) {
+      return this.completeRound(round);
+    }
+
+    round.advanceTurn();
+    return {
+      snapshot: this.toSnapshot(),
+      roundEnded: false,
+    };
+  }
+
+  private playVett(player: Player, card: Card, round: Round): PlayCardResult {
+    player.removeCard(card);
+    const highestPlay = round.getHighestLedSuitPlay();
+    const pileWinnerId = highestPlay.playerId;
+    const pileWinner = this.players.get(pileWinnerId);
+    if (!pileWinner) {
+      throw new GameError(ErrorCode.INTERNAL_ERROR, 'Pile winner not found in room');
+    }
+
+    const playedSoFar = round.getPlayedCards().map((pc) => pc.card);
+    pileWinner.addCards([...playedSoFar, card]);
+
+    const roundSnapshot = round.toSnapshot();
+    const completedRound: RoundSnapshot = {
+      ...roundSnapshot,
+      playedCards: [
+        ...roundSnapshot.playedCards,
+        { playerId: player.playerId, card },
+      ],
+    };
+
+    this.resolveRoundEliminations();
+    this.checkGameOver();
+
+    const nextStarterId = (this.status as GameStatus) === GameStatusConst.FINISHED ? '' : pileWinnerId;
+    this.currentRound = null;
+    this.nextRoundStarterId = nextStarterId || null;
+
+    return {
+      snapshot: this.toSnapshot(),
+      roundEnded: true,
+      discardedCards: [],
+      nextStarterPlayerId: nextStarterId,
+      isVett: true,
+      pileWinnerPlayerId: pileWinnerId,
+      completedRound,
+    };
+  }
+
+  private completeRound(round: Round): PlayCardResult {
+    const highestPlay = round.getHighestLedSuitPlay();
+    const discardedCards = round.getPlayedCards().map((pc) => pc.card);
+    const completedRound = round.toSnapshot();
+
+    this.resolveRoundEliminations();
+    this.checkGameOver();
+
+    let nextStarter = '';
+    if ((this.status as GameStatus) !== GameStatusConst.FINISHED) {
+      const ledPlays = round
+        .getPlayedCards()
+        .filter((pc) => pc.card.suit === round.ledSuit);
+      ledPlays.sort((a, b) => compareRank(b.card.rank, a.card.rank));
+
+      const nextStarterPlay = ledPlays.find((pc) => {
+        const p = this.players.get(pc.playerId);
+        return p && !p.isSpectator() && p.cardCount > 0;
+      });
+
+      nextStarter = nextStarterPlay?.playerId ?? '';
+      if (!nextStarter) {
+        const activeOrder = this.getActiveTurnOrder(highestPlay.playerId);
+        nextStarter = activeOrder[0] ?? '';
+      }
+    }
+
+    this.currentRound = null;
+    this.nextRoundStarterId = nextStarter || null;
+
+    return {
+      snapshot: this.toSnapshot(),
+      roundEnded: true,
+      discardedCards,
+      nextStarterPlayerId: nextStarter,
+      isVett: false,
+      completedRound,
+    };
+  }
+
 
   private resolveRoundEliminations(): void {
     if (this.currentRound) {

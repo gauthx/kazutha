@@ -96,7 +96,53 @@ describe('Game Aggregate Root', () => {
         expect(err.code).toBe(ErrorCode.CARD_NOT_IN_HAND);
       }
     });
+
+    it('rejects playCard when game is not in progress or player is unknown', () => {
+      // Game not in progress
+      expect(() => game.playCard('p1', cardHeartsK)).toThrow(GameError);
+      try {
+        game.playCard('p1', cardHeartsK);
+      } catch (err: any) {
+        expect(err.code).toBe(ErrorCode.GAME_IN_PROGRESS);
+      }
+
+      const hands: Card[][] = [
+        [cardHeartsK],
+        [cardSpadesA, cardSpadesK],
+        [cardSpadesQ],
+      ];
+      game.start(hands);
+
+      // Unknown player
+      expect(() => game.playCard('unknown_p', cardHeartsK)).toThrow(GameError);
+      try {
+        game.playCard('unknown_p', cardHeartsK);
+      } catch (err: any) {
+        expect(err.code).toBe(ErrorCode.ROOM_NOT_FOUND);
+      }
+    });
+
+    it('rejects non-starter when starting a new round', () => {
+      // p1 holds A♠, p2 holds K♠, p3 holds 2♠
+      const hands: Card[][] = [
+        [cardSpadesA, cardHeartsK],
+        [cardSpadesK, cardClubs10],
+        [cardSpades2, cardHeartsA],
+      ];
+      game.start(hands);
+      game.playCard('p2', cardSpadesK);
+      game.playCard('p3', cardSpades2); // round 1 ends, next starter is p1
+
+      // p2 attempts to start round 2 instead of p1
+      expect(() => game.playCard('p2', cardClubs10)).toThrow(GameError);
+      try {
+        game.playCard('p2', cardClubs10);
+      } catch (err: any) {
+        expect(err.code).toBe(ErrorCode.NOT_YOUR_TURN);
+      }
+    });
   });
+
 
   describe('Following Suit & No-Vett Rule', () => {
     it('forces player to follow led suit when they hold cards of that suit', () => {
@@ -450,6 +496,27 @@ describe('Game Aggregate Root', () => {
       // Top 2 (A♠ and K♠) finished; among remaining players with cards (pl3 with 10♠ and pl4 with 9♠), pl3 played higher
       expect(res.nextStarterPlayerId).toBe('pl3');
       expect(game4.getNextRoundStarterId()).toBe('pl3');
+      expect(res.completedRound).toBeDefined();
+      expect(res.completedRound?.playedCards).toHaveLength(4);
+      expect(res.completedRound?.playedCards[3]).toEqual({ playerId: 'pl4', card: cardSpades9 });
+    });
+
+    it('returns completedRound including off-suit card on Vett', () => {
+      const hands: Card[][] = [
+        [cardSpadesA], // p1 plays A♠
+        [cardHeartsK], // p2 has no spades, plays K♥ (Vett)
+        [cardSpadesK],
+      ];
+
+      game.start(hands);
+      const res = game.playCard('p2', cardHeartsK);
+
+      expect(res.roundEnded).toBe(true);
+      expect(res.isVett).toBe(true);
+      expect(res.completedRound).toBeDefined();
+      expect(res.completedRound?.playedCards).toHaveLength(2);
+      expect(res.completedRound?.playedCards[1]).toEqual({ playerId: 'p2', card: cardHeartsK });
     });
   });
 });
+

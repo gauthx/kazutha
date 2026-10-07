@@ -119,6 +119,7 @@ export interface RoundEndedPayload {
   roomSnapshot: RoomSnapshot;
   isVett: boolean;
   pileWinnerPlayerId: string | null;
+  completedRound?: RoundSnapshot;
 }
 
 export interface PlayCardAck {

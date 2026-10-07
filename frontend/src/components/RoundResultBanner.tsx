@@ -17,7 +17,7 @@ export function RoundResultBanner({
     if (!roundResult) return;
     const timer = setTimeout(() => {
       onDismiss();
-    }, 3500);
+    }, 3000);
     return () => clearTimeout(timer);
   }, [roundResult, onDismiss]);
 

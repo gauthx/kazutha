@@ -139,6 +139,7 @@ export class GameGateway
           roomSnapshot: result.snapshot,
           isVett: result.isVett ?? false,
           pileWinnerPlayerId: result.pileWinnerPlayerId ?? null,
+          completedRound: result.completedRound,
         });
 
         if (result.snapshot.status === 'FINISHED') {

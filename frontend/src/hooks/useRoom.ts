@@ -7,6 +7,7 @@ export interface RoundResult {
   isVett: boolean;
   pileWinnerPlayerId: string | null;
   nextStarterPlayerId: string;
+  completedRound?: import('@shared/types').RoundSnapshot;
 }
 
 export function useRoom(
@@ -98,6 +99,7 @@ export function useRoom(
         isVett: payload.isVett,
         pileWinnerPlayerId: payload.pileWinnerPlayerId,
         nextStarterPlayerId: payload.nextStarterPlayerId,
+        completedRound: payload.completedRound,
       });
     };
 

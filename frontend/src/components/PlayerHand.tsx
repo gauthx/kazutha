@@ -18,6 +18,7 @@ interface PlayerHandProps {
   isSubmitting?: boolean;
   isSpectator?: boolean;
   finishPosition?: number | null;
+  isRoundPause?: boolean;
 }
 
 export function PlayerHand({
@@ -29,6 +30,7 @@ export function PlayerHand({
   isSubmitting,
   isSpectator = false,
   finishPosition = null,
+  isRoundPause = false,
 }: PlayerHandProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [containerWidth, setContainerWidth] = useState(1280);
@@ -46,13 +48,13 @@ export function PlayerHand({
   const peek = computePeek(hand.length, containerWidth, CARD_WIDTH);
   const fanWidth = hand.length === 0 ? 0 : CARD_WIDTH + (hand.length - 1) * peek;
 
-  const isMyTurn = !isSpectator && (currentRound
+  const isMyTurn = !isSpectator && !isRoundPause && (currentRound
     ? currentRound.currentTurnPlayerId === localPlayerId
     : nextRoundStarterId === localPlayerId);
   const ledSuit = currentRound?.ledSuit ?? null;
   const hasLedSuit = ledSuit ? hand.some((c) => c.suit === ledSuit) : false;
 
-  const isPlayable = (card: CardType) => !isSpectator && isMyTurn && !isSubmitting && (!ledSuit || !hasLedSuit || card.suit === ledSuit);
+  const isPlayable = (card: CardType) => !isSpectator && !isRoundPause && isMyTurn && !isSubmitting && (!ledSuit || !hasLedSuit || card.suit === ledSuit);
 
   return (
     <div className="w-full flex flex-col items-center py-4">
